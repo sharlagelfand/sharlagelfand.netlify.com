@@ -1,0 +1,136 @@
+---
+title: "Are people obsessed with Virgos?"
+date: '2017-08-30'
+slug: virgos
+---
+
+As you may know, I like astrology. [Astro Poets](https://twitter.com/poetastrologers)
+is a great twitter account run by two poets who post painfully accurate descriptions
+and commentary on the twelve zodiac signs.
+
+Today they [tweeted](https://twitter.com/poetastrologers/status/902953691724046336)
+that a Viirgo wrote in asking if people like tweets about Virgos more. 
+
+Now, I'm not a Virgo, and they definitely made fun of the person for asking --
+but now I gotta know. 
+
+Are people obsessed with Virgos? Which signs garner the most attention?
+
+We'll take a look at Astro Poets' tweet activity using the excellent 
+[rtweet](https://github.com/mkearney/rtweet/) package. I've already set up my
+access token, but if you've never used this package before, the instructions are 
+[here](http://rtweet.info/index.html).
+
+```{r setup, message=FALSE}
+# install.packages("rtweet")
+library(rtweet)
+```
+
+The Astro Poets account doesn't have too many tweets, so we'll use rtweet to pull
+them all in, excluding retweets and replies. The function lookup_users() 
+grabs information on a certain user, including their number of tweets, 
+so I don't have to manually check the account and hard code that number in 
+(reproducibility!).
+
+```{r access_tweets, message=FALSE, warnings = FALSE}
+library(dplyr)
+
+n_tweets <- lookup_users("poetastrologers") %>% with(statuses_count)
+tweets <- get_timeline("poetastrologers", n = n_tweets)
+
+tweets <- tweets %>%
+  dplyr::filter(!is_retweet & is.na(in_reply_to_status_status_id)) %>%
+  dplyr::select(created_at, text, retweet_count, favorite_count)
+
+tweets %>% glimpse()
+```
+
+To see if people are interacting with sign's tweets differently, first we'll
+figure out which sign each tweet is about, by checking for the presence of each
+sign in each tweet. For simplicity's sake, I'll only look at tweets that mention
+one sign (not zero, and not more than one).
+
+```{r tweet_sign, message=FALSE, warnings = FALSE}
+library(stringr)
+library(fuzzyjoin)
+
+signs <- data_frame(sign = c("Aries", "Taurus", "Gemini", "Cancer",
+                             "Leo", "Virgo", "Libra", "Scorpio",
+                             "Sagittarius", "Capricorn", "Aquarius", "Pisces"))
+
+tweets_with_sign <- tweets %>%
+  regex_inner_join(signs, by = c("text" = "sign"), ignore_case = TRUE) %>%
+  group_by(text) %>%
+  mutate(n = n()) %>%
+  filter(n == 1) %>%
+  ungroup() %>%
+  select(-created_at, -n)
+
+tweets_with_sign %>% glimpse()
+```
+
+First things first -- do they write about each sign equally? Typically their style
+is serialized; a bunch of tweets at once, with one about each sign. So, we expect
+each sign to have a 1/12 chance of being written about, around 8.3%.
+
+```{r sign_count}
+library(forcats)
+library(ggplot2)
+
+count_by_sign <- tweets_with_sign %>%
+  group_by(sign) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(total = sum(n),
+         prop = n/total)
+
+ggplot(count_by_sign, aes(x = reorder(sign, prop), y = prop)) + 
+  geom_col() + 
+  scale_y_continuous(labels = scales::percent, name = "Percent of Tweets") + 
+  scale_x_discrete(name = "Sign") + 
+  coord_flip() +  
+  theme_minimal()
+```
+
+Not so! We see some fairly big discrepancies here -- in particular, Sagittarius
+is written about almost 10% of the time, while Aquarius squeaks in at just over 7%.
+Favouritism is clear! 
+
+Next, we'll look at how people interact with each of the signs' tweets, with a focus
+on likes.
+
+```{r likes}
+library(tidyr)
+
+likes_by_sign <- tweets_with_sign %>%
+  group_by(sign) %>%
+  summarise(Median = median(favorite_count),
+         Max = max(favorite_count)) %>%
+  gather(Measure, Likes, Median, Max) %>%
+  mutate(Measure = factor(Measure, c("Median", "Max")))
+
+ggplot(likes_by_sign, aes(x = reorder(sign, Likes), y = Likes)) + 
+  geom_col() + 
+  facet_grid(.~Measure, scales = "free") + 
+  scale_x_discrete(name = "Sign") + 
+  coord_flip() + 
+  theme_minimal()
+```
+
+While Virgo comes in fourth when we look at the median number of likes for each 
+sign, we can see that it takes first place in terms of the most likes on a single
+tweet -- `r likes_by_sign %>% filter(sign == "Virgo" & Measure == "Max") %>% with(Likes)` likes,
+a whopping ~2500 more likes than any other sign. What's the tweet?
+
+```{r favorite_virgo_tweet}
+tweets_with_sign %>%
+  filter(favorite_count == likes_by_sign %>% filter(sign == "Virgo" 
+                                                    & Measure == "Max") 
+         %>% with(Likes)) %>%
+  with(text)
+```
+
+😬
+
+I'm not sure if this tweet having the most likes supports the claim that Virgos
+get the most love, but it's certainly... something.

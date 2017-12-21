@@ -1,0 +1,27 @@
+baseurl = "https://sharlagelfand.netlify.com"
+title = "Sharla Gelfand"
+copyright = "Copyright &copy; 2017 - Sharla Gelfand"
+canonifyurls = true
+theme = "hugo-kiera"
+
+paginate = 3
+
+summaryLength = 50
+enableEmoji = true
+pygmentsCodeFences = true
+
+disqusShortname = "sharlagelfand"
+
+[author]
+    name = "Sharla Gelfand"
+    github = "sharlagelfand"
+    gitlab = ""
+    linkedin = ""
+    facebook = ""
+    twitter = "sharlagelfand"
+    instagram = ""
+
+[params]
+    tagline = "Blogs about R."
+
+ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]

@@ -1,0 +1,295 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <title>Sharla Gelfand</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="The HTML5 Herald" />
+  <meta name="author" content="Sharla Gelfand" />
+  <meta name="generator" content="Hugo 0.31.1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/7.0.0/normalize.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  <link rel="stylesheet" type="text/css" href="/css/styles.css" />
+</head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+                <a href="/">Sharla Gelfand</a>
+            </h1>
+
+      <ul id="social-media">
+        
+        <li><a href="https://twitter.com/sharlagelfand"><i class="fa fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+          
+        <li><a href="https://github.com/sharlagelfand"><i class="fa fa-github fa-lg" aria-hidden="true"></i></a></li>
+           
+      </ul>
+      
+      <p><em>Blogs about R.</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+        <li>
+            <a class="" href="/about/">
+                <i class="fa-li fa  fa-lg"></i><span>About</span>
+            </a>
+        </li>
+        
+    </ul>
+</nav>
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>Tidy Text Mining with Horoscopes</h1>
+
+    
+        <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2017-02-17T00:00:00Z">Feb 17, 2017</time>
+        </li>
+        
+        
+
+        
+
+        <li>6 min read</li>
+    </ul>
+</aside>
+    
+
+    <p>If you’ve ever talked to me for ~10 seconds, chances are I’m wondering what your zodiac sign is – any longer than that, I’ve probably asked you.</p>
+<p>Astrology is not for everyone, but it’s definitely for me! YMMV on different sites, and horoscope quality definitely varies, but I’ve found an astrologer that I’m a pretty big fan of – <a href="http://chaninicholas.com">Chani Nicholas</a>!</p>
+<p>In her own words, “Many of my ideas, philosophies and concepts have been and are constantly shaped by LGBTQI2S, POC, feminist writers, artists, thinkers, activists and community members as well as by my many brilliant colleagues and folks that I work with both in individual readings and group settings. I aim to make astrology practical, approachable and useful. Otherwise it’s all just cosmic hot air and planets far from reach.”</p>
+<p>Not bad!</p>
+<p>I like her work so much that I decided to make an R package, <a href="https://github.com/sharlagelfand/astrologer">astrologer</a>, packed full of Chani’s hot-air-less weekly horoscopes.</p>
+<p>Let’s take a look!</p>
+<pre class="r"><code>devtools::install_github(&quot;sharlagelfand/astrologer&quot;)
+library(astrologer)</code></pre>
+<p>It includes one dataset, <code>horoscopes</code>, which is a tidy-ish dataframe containing the start date, zodiac sign, horoscope, and URL that the horoscope is pulled from.</p>
+<pre class="r"><code>library(dplyr)
+
+horoscopes %&gt;% glimpse()</code></pre>
+<pre><code>## Observations: 1,272
+## Variables: 4
+## $ startdate  &lt;date&gt; 2015-01-05, 2015-01-05, 2015-01-05, 2015-01-05, 20...
+## $ zodiacsign &lt;fctr&gt; Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, ...
+## $ horoscope  &lt;chr&gt; &quot;Considering the fact that this past week (especial...
+## $ url        &lt;chr&gt; &quot;http://chaninicholas.com/2015/01/horoscopes-week-j...</code></pre>
+<p>People like to say that horoscopes are all the same – so I’ll be digging into the text from these horoscopes to really find out what’s what. In order to do cool stuff with this data, I’ll be using Julia Silge and David Robinson’s <a href="http://tidytextmining.com/">tidytext</a> package/framework pretty heavily!</p>
+<p>First, let’s get it into a tidy-er form, with one row per word, and remove stop words.</p>
+<pre class="r"><code>library(tidytext)
+
+horoscopes_tidy &lt;- horoscopes %&gt;%
+  unnest_tokens(word, horoscope) %&gt;%
+  anti_join(stop_words) %&gt;%
+  select(-url)
+
+head(horoscopes_tidy)</code></pre>
+<pre><code>## # A tibble: 6 x 3
+##    startdate  zodiacsign       word
+##       &lt;date&gt;      &lt;fctr&gt;      &lt;chr&gt;
+## 1 2017-02-06      Pisces      brows
+## 2 2017-02-06    Aquarius  recharged
+## 3 2017-02-06    Aquarius lifesavers
+## 4 2017-02-06    Aquarius   canvases
+## 5 2017-02-06    Aquarius     gaping
+## 6 2017-02-06 Sagittarius   believes</code></pre>
+<p>What are the most common words used in all these horoscopes?</p>
+<pre class="r"><code>library(ggplot2)
+
+horoscopes_tidy %&gt;%
+  count(word, sort = TRUE) %&gt;%
+  filter(row_number() &lt; 15) %&gt;%
+  ggplot(aes(x = reorder(word, n), y = n)) +
+  geom_col() +
+  labs(x = &quot;word&quot;) + 
+  coord_flip() +
+  theme_minimal()</code></pre>
+<p><img src="/posts/2017-02-17-Horoscopes_files/figure-html/commonwords-1.png" width="672" /></p>
+<p>Not a huge surprise that “week” comes in #2, considering these are weekly horoscopes! You can get the general vibe of how Chani writes from this – lots about feelings, energy, and relationships.</p>
+<p>This is overall – what’s the most-used word for each sign?</p>
+<pre class="r"><code>horoscopes_tidy %&gt;%
+  group_by(zodiacsign) %&gt;%
+  count(word, sort = TRUE) %&gt;%
+  filter(n == max(n)) %&gt;%
+  print(n = 12)</code></pre>
+<pre><code>## # A tibble: 12 x 3
+## # Groups:   zodiacsign [12]
+##     zodiacsign  word     n
+##         &lt;fctr&gt; &lt;chr&gt; &lt;int&gt;
+##  1   Capricorn  life   127
+##  2       Aries  life   126
+##  3     Scorpio  life   124
+##  4 Sagittarius  life   122
+##  5       Virgo  week   118
+##  6      Taurus  life   117
+##  7      Pisces  life   112
+##  8      Cancer  time   110
+##  9       Libra  week   109
+## 10    Aquarius  week   108
+## 11         Leo  life   106
+## 12      Gemini  week   100</code></pre>
+<p>Most of the same, no surprise there! This isn’t super interesting because it doesn’t tell much about the difference in common words used for each sign, just that – yes; life, week, we got it 👍.</p>
+<p>I’ll use tf-idf to find out which words are the most important for each sign. Julia and David explained tf-idf really well <a href="http://tidytextmining.com/tfidf.html">here</a> – essentially, it looks at words that are used a lot in horoscopes for one sign, but not so much for other signs.</p>
+<pre class="r"><code>horoscope_words &lt;- horoscopes %&gt;%
+  unnest_tokens(word, horoscope) %&gt;%
+  count(zodiacsign, word, sort = TRUE) %&gt;%
+  ungroup()
+
+total_words &lt;- horoscope_words %&gt;%
+  group_by(zodiacsign) %&gt;%
+  summarize(total = sum(n))
+
+horoscope_words &lt;- horoscope_words %&gt;%
+  left_join(total_words, by = &quot;zodiacsign&quot;) %&gt;%
+  bind_tf_idf(word, zodiacsign, n) %&gt;%
+  arrange(desc(tf_idf)) %&gt;%
+  mutate(word = factor(word, levels = rev(unique(word)))) %&gt;%
+  group_by(zodiacsign) %&gt;%
+  top_n(5, wt = tf_idf) %&gt;%
+  ungroup()</code></pre>
+<p>Let’s do the top 5-ish for each sign. There’s more than 5 for some signs because of ties in the tf-idf.</p>
+<pre class="r"><code>sign_color &lt;- c(&quot;Aries&quot; = &quot;#DC863B&quot;, &quot;Taurus&quot; = &quot;#CDC08C&quot; , &quot;Gemini&quot; =  &quot;#FAEFD1&quot;,
+                &quot;Cancer&quot; = &quot;#ABDDDE&quot;, &quot;Leo&quot; = &quot;#D25C26&quot;, &quot;Virgo&quot; =  &quot;#B4AB6B&quot;,
+                &quot;Libra&quot; = &quot;#F9CFBC&quot;, &quot;Scorpio&quot; = &quot;#57A4BC&quot;, &quot;Sagittarius&quot; = &quot;#C93312&quot;,
+                &quot;Capricorn&quot; = &quot;#9C964A&quot;, &quot;Aquarius&quot; =  &quot;#F8AFA8&quot;, &quot;Pisces&quot; =  &quot;#046C9A&quot;)
+
+ggplot(horoscope_words, aes(word, tf_idf, fill = zodiacsign)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = &quot;tf-idf&quot;) +
+  facet_wrap(~zodiacsign, ncol = 4, scales = &quot;free&quot;) + 
+  scale_fill_manual(values = sign_color) + 
+  coord_flip() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_blank())</code></pre>
+<p><img src="/posts/2017-02-17-Horoscopes_files/figure-html/signs-tfidf-1.png" width="672" /></p>
+<p>Understandably, a lot of signs have their own names ranking pretty high (e.g. “aries” for Aries), or symbols that represent them (“bulls” for Taurus, “goat” for Capricorn). There’s also some of the common traits and habits of signs up there, like “organize”, “overwork”, and “procrastinate” for Cancer – yikes, that’s me ♋!</p>
+<p>Ok, feelings time.</p>
+<p>Despite the fact that this is turning into an advertisement for the tidy text mining book, I’ll be pulling from it again to look at the sentiment in this data – horoscopes are pretty personal, and in my opinion meant to serve as inspiration for dealing with the 💩 storm that life can be sometimes, and that the world definitely is right now.</p>
+<p>Let’s peek at the sentiments over time.</p>
+<p>If you’re following along, the relevant chapter is <a href="http://tidytextmining.com/sentiment.html">here</a>. After some fiddling and experimentation, I’ll be using the Bing sentiment dictionary.</p>
+<pre class="r"><code>library(tidyr)
+
+horoscopes_sentiment &lt;- horoscopes_tidy %&gt;%
+  inner_join(get_sentiments(&quot;bing&quot;), by = &quot;word&quot;) %&gt;%
+  count(startdate, sentiment) %&gt;%
+  spread(sentiment, n, fill = 0) %&gt;%
+  mutate(sentiment = positive - negative)
+
+ggplot(horoscopes_sentiment, aes(x = startdate, y = sentiment, fill = sentiment)) +
+  geom_bar(stat = &#39;identity&#39;, show.legend = FALSE) +
+  labs(x = &quot;date&quot;) + 
+  scale_x_date(date_minor_breaks = &quot;1 month&quot;, date_labels = &quot;%b-%Y&quot;) + 
+  scale_fill_gradient(low=&quot;#FAEFD1&quot;, high=&quot;#C93312&quot;) + 
+  theme_minimal()</code></pre>
+<p><img src="/posts/2017-02-17-Horoscopes_files/figure-html/sentiments-1.png" width="672" /></p>
+<p>The peaks are most interesting to me here – the very highest is from November 7, 2016, the day before the American election. I remember reading those horoscopes and seeing the hope and positivity behind them. Besides that, the next highest are the first horoscopes of 2016 and 2017. New year brings out the best in us! Or at least, the best in Chani’s hopes for us.</p>
+<p>There’s not a ton of dates that scored negative here, which I agree with – I think Chani tends to run on the inspirational side, rather than demotivaing.</p>
+<p>The most negative is <a href="http://chaninicholas.com/2015/05/horoscopes-for-the-week-of-may-25th/">one from May 2015</a>, and reading the opening line I could instantly see why it was about to score so low – “It’s never useful to <em>blame</em> astrological events for our bad behavior.” It follows a theme of being accountable for bad behaviour – so the sentiment is overall a little harsher than we normally see. Why the callout?</p>
+<p>That week was a <a href="https://www.astrologyzone.com/everything-you-need-to-know-about-mercury-retrograde/">mercury retrograde</a>!</p>
+<p>😅</p>
+<p>ps: I would love to see what other people can do with this data – bonus points if you are further than four chapters in to the tidy text mining book!</p>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        <li>
+            <a href="/posts/peppermint/"><i class="fa fa-chevron-circle-left"></i> Peppermint</a>
+        </li>
+        
+        
+        <li>
+            <a href="/posts/virgos/">Are people obsessed with Virgos? <i class="fa fa-chevron-circle-right"></i> </a>
+        </li>
+        
+    </ul>
+</section>
+    
+        <section class="comments-block">
+      <button id="show-comments" style="display: none;"><i class="fa fa-comments-o"></i> Add/View Comments</button>
+</section>
+
+<section id="disqus_thread"></section>
+
+<script>
+      (function () {
+            
+            
+            if (window.location.hostname == "localhost")
+                  return;
+
+            var disqus_loaded = false;
+            var disqus_shortname = 'sharlagelfand';
+            var disqus_button = document.getElementById("show-comments");
+
+            disqus_button.style.display = "";
+            disqus_button.addEventListener("click", disqus, false);
+
+            function disqus() {
+
+                  if (!disqus_loaded) {
+                        disqus_loaded = true;
+
+                        var e = document.createElement("script");
+                        e.type = "text/javascript";
+                        e.async = true;
+                        e.src = "//" + disqus_shortname + ".disqus.com/embed.js";
+                        (document.getElementsByTagName("head")[0] ||
+                              document.getElementsByTagName("body")[0])
+                        .appendChild(e);
+
+                        
+                        document.getElementById("show-comments").style.display = "none";
+                  }
+            }
+
+            
+            var hash = window.location.hash.substr(1);
+            if (hash.length > 8) {
+                  if (hash.substring(0, 8) == "comment-") {
+                        disqus();
+                  }
+            }
+
+            
+            if (/bot|google|baidu|bing|msn|duckduckgo|slurp|yandex/i.test(navigator.userAgent)) {
+                  disqus();
+            }
+      })();
+</script>
+    
+
+
+
+
+
+</main>
+    <footer>
+        <h6>Copyright &copy; 2017 - Sharla Gelfand | 
+            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
+            <a href="/index.xml">Subscribe</a></h6>
+    </footer>
+</div>
+<script src="/js/scripts.js"></script>
+</body>
+
+</html>

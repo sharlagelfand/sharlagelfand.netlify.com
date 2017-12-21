@@ -1,0 +1,119 @@
+---
+title: Peppermint
+author: Sharla Gelfand
+date: '2017-01-31'
+slug: peppermint
+---
+
+👋
+
+A few weeks ago I went to
+[rstudio::conf()](https://www.rstudio.com/conference/) and came home
+[sans
+wallet](https://twitter.com/sharlagelfand/status/820704143555727360),
+[sans
+keys](https://twitter.com/sharlagelfand/status/820793407966564353), but
+plus a lot of inspiration to actually work on personal projects and try
+out some of the new (and not-so-new!) things that RStudio has to offer.
+I'd touched Shiny a few times but honestly maybe hadn't used RMarkdown
+since the Sweave days. Combine this with listening religiously to [Not
+So Standard Deviations](https://soundcloud.com/nssd-podcast) and getting
+the brilliant idea from Hilary to do my personal finances in R, and I
+had a project!
+
+I find my finances to be awkward and hard to coordinate. Previously I
+used a mix of Mint.and, for a while, a spreadsheet that looked something
+like this:
+
+![](/images/2017-01-31-Peppermint/budget.png) 
+
+(what did I do if I had more transactions than the number of provided
+lines? ¯\\(ツ)/¯)
+
+but neither were really ideal! Mint isn't designed for the way Canadian
+bank accounts work (or maybe I don't have adult enough banking for how
+Mint works), but I'd been finding it really hard to keep track of my
+spending, and *especially* my savings... without it looking like I was
+spending that money instead of saving it.
+
+Introducing...[Peppermint](https://sharlagelfand.shinyapps.io/peppermint/)!
+
+![](/images/2017-01-31-Peppermint/peppermint.png)
+
+<br> Peppermint is a hilariously named personal finance app that reads
+from a bunch of google sheets and creates summaries + visualizations
+based on what I wanted to see most:
+
+-   the current month's spending, in categories ($ amount, as well as %
+    of my income), and compared to a set budget
+-   itemized list of the current month's spending
+-   spending over time
+-   the current month's savings, based on a set goal
+-   savings over time
+
+You can go into the
+[app](https://sharlagelfand.shinyapps.io/peppermint/) and click around
+(there's a tab!), and all of the code is available [on
+github](https://sharlagelfand.shinyapps.io/peppermint/).
+
+Since personal finance is personal: I've gone to some efforts to
+anonymize the data -- pretty much everything is multiplied by a random
+number between 0.1 and 5, and all descriptions for my transactions
+(i.e., where I shop) are replaced with random strings. The categories
+are unchanged, but some runs it'll look like I spend 0.4% of my monthly
+income on $3,000 worth of rent and aim to save $200. So yes, the numbers
+you see up there are a lie! My car insurance is overpriced, but not
+$1,200 a month overpriced.
+
+Initially I was manually exporting my transaction data from Mint but
+knew that wouldn't last - I did look into a [Python
+API](https://github.com/mrooney/mintapi) that seemed pretty good (in
+theory) but figuring out cookies and credentials to get from Chrome was
+beyond the scope of my MVP (aaand I didn't want to write Python).  
+
+So now, everything is in a bunch of google sheets that I update manually -
+I think this is good for me. It helps me actually look at what I'm
+spending 💰 on, and *especially* cash transactions, which... if you see
+the personal version of my app, you'll see I have no idea what I spend
+that cash on at all. Feeling optimized, and at least there's no more of this:  
+
+![](/images/2017-01-31-Peppermint/nosavings.png)
+
+ps: I would be remiss if I didn't shout out Kathyrn Morrison, who also
+picked up Hilary's idea and did a [great
+post](https://kathryntmorrison.github.io/R_money) on managing her
+personal finances in R!
+
+Some things I learned along the way:
+
+-   Shiny vs shinydashboard vs flexdashboard -- yeah, I wasn't too sure
+    either! I found [this
+    StackOverflow](http://stackoverflow.com/questions/37992147/r-shiny-which-hammer-straight-shiny-flexdashboard-or-shinydashboard)
+    post which is a great explanation of the difference, and eventually
+    settled on flexdashboard for this project, primarly because I didn't
+    need a ton of/any interactivity. Future iterations TBD.
+-   `Sys.time()` is timezone dependent (of course), and the timezone
+    that ShinyApps.io is on is not necessarily my timezone -- which
+    results in a small window where no data was showing up for the
+    current month because, for me, the current month was January, but in
+    Shiny world, it was February.
+-   How to write my first [github
+    issue](https://github.com/rstudio/rsconnect/issues/153)!
+-   If you call Universal Studios enough times (i.e., until they have
+    actually found your wallet), they will [mail you your
+    wallet](https://twitter.com/sharlagelfand/status/824089175909539840)!
+
+pps: this is my first blog post! some notes on that:
+
+-   Yihui Xie's [blogdown](https://github.com/rstudio/blogdown) package
+    is really, really cool. It's still in beta without a ton of
+    documentation, and I couldn't quite figure it out (though Amber
+    Thomas's [post on
+    it](https://proquestionasker.github.io/blog/Making_Site/) is
+    amazing, but I'm looking forward to trying it out again in the
+    future!
+-   This blog is created using Jekyll. There are a ton of guides to
+    setting up a new site, but I ended up using a process similar to the
+    one outlined
+    [here](https://mmistakes.github.io/minimal-mistakes/docs/quick-start-guide/)
+    by forking and changing an existing theme.

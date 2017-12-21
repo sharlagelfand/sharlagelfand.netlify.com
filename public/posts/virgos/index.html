@@ -1,0 +1,253 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <title>Sharla Gelfand</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="The HTML5 Herald" />
+  <meta name="author" content="Sharla Gelfand" />
+  <meta name="generator" content="Hugo 0.31.1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/7.0.0/normalize.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Slab|Ruda" />
+  <link rel="stylesheet" type="text/css" href="/css/styles.css" />
+</head>
+
+<body>
+  <div id="container">
+    <header>
+      <h1>
+                <a href="/">Sharla Gelfand</a>
+            </h1>
+
+      <ul id="social-media">
+        
+        <li><a href="https://twitter.com/sharlagelfand"><i class="fa fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+          
+        <li><a href="https://github.com/sharlagelfand"><i class="fa fa-github fa-lg" aria-hidden="true"></i></a></li>
+           
+      </ul>
+      
+      <p><em>Blogs about R.</em></p>
+      
+    </header>
+
+    
+<nav>
+    <ul>
+        
+        <li>
+            <a class="" href="/about/">
+                <i class="fa-li fa  fa-lg"></i><span>About</span>
+            </a>
+        </li>
+        
+    </ul>
+</nav>
+
+    <main>
+
+
+
+
+<article>
+
+    <h1>Are people obsessed with Virgos?</h1>
+
+    
+        <aside>
+    <ul>
+        <li>
+            <time class="post-date" datetime="2017-08-30T00:00:00Z">Aug 30, 2017</time>
+        </li>
+        
+        
+
+        
+
+        <li>4 min read</li>
+    </ul>
+</aside>
+    
+
+    <p>As you may know, I like astrology. <a href="https://twitter.com/poetastrologers">Astro Poets</a> is a great twitter account run by two poets who post painfully accurate descriptions and commentary on the twelve zodiac signs.</p>
+<p>Today they <a href="https://twitter.com/poetastrologers/status/902953691724046336">tweeted</a> that a Viirgo wrote in asking if people like tweets about Virgos more.</p>
+<p>Now, I’m not a Virgo, and they definitely made fun of the person for asking – but now I gotta know.</p>
+<p>Are people obsessed with Virgos? Which signs garner the most attention?</p>
+<p>We’ll take a look at Astro Poets’ tweet activity using the excellent <a href="https://github.com/mkearney/rtweet/">rtweet</a> package. I’ve already set up my access token, but if you’ve never used this package before, the instructions are <a href="http://rtweet.info/index.html">here</a>.</p>
+<pre class="r"><code># install.packages(&quot;rtweet&quot;)
+library(rtweet)</code></pre>
+<p>The Astro Poets account doesn’t have too many tweets, so we’ll use rtweet to pull them all in, excluding retweets and replies. The function lookup_users() grabs information on a certain user, including their number of tweets, so I don’t have to manually check the account and hard code that number in (reproducibility!).</p>
+<pre class="r"><code>library(dplyr)
+
+n_tweets &lt;- lookup_users(&quot;poetastrologers&quot;) %&gt;% with(statuses_count)</code></pre>
+<pre><code>## Warning: Please set env var TWITTER_PAT to your Twitter personal access
+## token(s)</code></pre>
+<pre class="r"><code>tweets &lt;- get_timeline(&quot;poetastrologers&quot;, n = n_tweets)
+
+tweets &lt;- tweets %&gt;%
+  dplyr::filter(!is_retweet &amp; is.na(in_reply_to_status_status_id)) %&gt;%
+  dplyr::select(created_at, text, retweet_count, favorite_count)
+
+tweets %&gt;% glimpse()</code></pre>
+<pre><code>## Observations: 3,175
+## Variables: 4
+## $ created_at     &lt;dttm&gt; 2017-12-21 16:02:11, 2017-12-21 00:19:08, 2017...
+## $ text           &lt;chr&gt; &quot;Your Sun Sign is only part of your personality...
+## $ retweet_count  &lt;int&gt; 58, 152, 957, 796, 33, 1100, 1763, 866, 836, 83...
+## $ favorite_count &lt;int&gt; 323, 962, 4141, 3541, 394, 4802, 6446, 4090, 27...</code></pre>
+<p>To see if people are interacting with sign’s tweets differently, first we’ll figure out which sign each tweet is about, by checking for the presence of each sign in each tweet. For simplicity’s sake, I’ll only look at tweets that mention one sign (not zero, and not more than one).</p>
+<pre class="r"><code>library(stringr)
+library(fuzzyjoin)
+
+signs &lt;- data_frame(sign = c(&quot;Aries&quot;, &quot;Taurus&quot;, &quot;Gemini&quot;, &quot;Cancer&quot;,
+                             &quot;Leo&quot;, &quot;Virgo&quot;, &quot;Libra&quot;, &quot;Scorpio&quot;,
+                             &quot;Sagittarius&quot;, &quot;Capricorn&quot;, &quot;Aquarius&quot;, &quot;Pisces&quot;))
+
+tweets_with_sign &lt;- tweets %&gt;%
+  regex_inner_join(signs, by = c(&quot;text&quot; = &quot;sign&quot;), ignore_case = TRUE) %&gt;%
+  group_by(text) %&gt;%
+  mutate(n = n()) %&gt;%
+  filter(n == 1) %&gt;%
+  ungroup() %&gt;%
+  select(-created_at, -n)
+
+tweets_with_sign %&gt;% glimpse()</code></pre>
+<pre><code>## Observations: 2,610
+## Variables: 4
+## $ text           &lt;chr&gt; &quot;Rolling into Capricorn season like https://t.c...
+## $ retweet_count  &lt;int&gt; 957, 836, 834, 1012, 792, 1230, 733, 2009, 703,...
+## $ favorite_count &lt;int&gt; 4141, 2701, 2522, 2906, 2513, 3981, 2416, 4944,...
+## $ sign           &lt;chr&gt; &quot;Capricorn&quot;, &quot;Pisces&quot;, &quot;Aquarius&quot;, &quot;Capricorn&quot;,...</code></pre>
+<p>First things first – do they write about each sign equally? Typically their style is serialized; a bunch of tweets at once, with one about each sign. So, we expect each sign to have a 1/12 chance of being written about, around 8.3%.</p>
+<pre class="r"><code>library(forcats)
+library(ggplot2)
+
+count_by_sign &lt;- tweets_with_sign %&gt;%
+  group_by(sign) %&gt;%
+  count() %&gt;%
+  ungroup() %&gt;%
+  mutate(total = sum(n),
+         prop = n/total)
+
+ggplot(count_by_sign, aes(x = reorder(sign, prop), y = prop)) + 
+  geom_col() + 
+  scale_y_continuous(labels = scales::percent, name = &quot;Percent of Tweets&quot;) + 
+  scale_x_discrete(name = &quot;Sign&quot;) + 
+  coord_flip() +  
+  theme_minimal()</code></pre>
+<p><img src="/posts/2017-08-30-Virgos_files/figure-html/sign_count-1.png" width="672" /></p>
+<p>Not so! We see some fairly big discrepancies here – in particular, Sagittarius is written about almost 10% of the time, while Aquarius squeaks in at just over 7%. Favouritism is clear!</p>
+<p>Next, we’ll look at how people interact with each of the signs’ tweets, with a focus on likes.</p>
+<pre class="r"><code>library(tidyr)
+
+likes_by_sign &lt;- tweets_with_sign %&gt;%
+  group_by(sign) %&gt;%
+  summarise(Median = median(favorite_count),
+         Max = max(favorite_count)) %&gt;%
+  gather(Measure, Likes, Median, Max) %&gt;%
+  mutate(Measure = factor(Measure, c(&quot;Median&quot;, &quot;Max&quot;)))
+
+ggplot(likes_by_sign, aes(x = reorder(sign, Likes), y = Likes)) + 
+  geom_col() + 
+  facet_grid(.~Measure, scales = &quot;free&quot;) + 
+  scale_x_discrete(name = &quot;Sign&quot;) + 
+  coord_flip() + 
+  theme_minimal()</code></pre>
+<p><img src="/posts/2017-08-30-Virgos_files/figure-html/likes-1.png" width="672" /></p>
+<p>While Virgo comes in fourth when we look at the median number of likes for each sign, we can see that it takes first place in terms of the most likes on a single tweet – 1.120210^{4} likes, a whopping ~2500 more likes than any other sign. What’s the tweet?</p>
+<pre class="r"><code>tweets_with_sign %&gt;%
+  filter(favorite_count == likes_by_sign %&gt;% filter(sign == &quot;Virgo&quot; 
+                                                    &amp; Measure == &quot;Max&quot;) 
+         %&gt;% with(Likes)) %&gt;%
+  with(text)</code></pre>
+<pre><code>## [1] &quot;We are just days away from Virgo season. Clean your apartments, be on time, get ready to be criticized.&quot;</code></pre>
+<p>😬</p>
+<p>I’m not sure if this tweet having the most likes supports the claim that Virgos get the most love, but it’s certainly… something.</p>
+
+
+</article>
+
+
+<section class="post-nav">
+    <ul>
+        
+        <li>
+            <a href="/posts/horoscopes/"><i class="fa fa-chevron-circle-left"></i> Tidy Text Mining with Horoscopes</a>
+        </li>
+        
+        
+    </ul>
+</section>
+    
+        <section class="comments-block">
+      <button id="show-comments" style="display: none;"><i class="fa fa-comments-o"></i> Add/View Comments</button>
+</section>
+
+<section id="disqus_thread"></section>
+
+<script>
+      (function () {
+            
+            
+            if (window.location.hostname == "localhost")
+                  return;
+
+            var disqus_loaded = false;
+            var disqus_shortname = 'sharlagelfand';
+            var disqus_button = document.getElementById("show-comments");
+
+            disqus_button.style.display = "";
+            disqus_button.addEventListener("click", disqus, false);
+
+            function disqus() {
+
+                  if (!disqus_loaded) {
+                        disqus_loaded = true;
+
+                        var e = document.createElement("script");
+                        e.type = "text/javascript";
+                        e.async = true;
+                        e.src = "//" + disqus_shortname + ".disqus.com/embed.js";
+                        (document.getElementsByTagName("head")[0] ||
+                              document.getElementsByTagName("body")[0])
+                        .appendChild(e);
+
+                        
+                        document.getElementById("show-comments").style.display = "none";
+                  }
+            }
+
+            
+            var hash = window.location.hash.substr(1);
+            if (hash.length > 8) {
+                  if (hash.substring(0, 8) == "comment-") {
+                        disqus();
+                  }
+            }
+
+            
+            if (/bot|google|baidu|bing|msn|duckduckgo|slurp|yandex/i.test(navigator.userAgent)) {
+                  disqus();
+            }
+      })();
+</script>
+    
+
+
+
+
+
+</main>
+    <footer>
+        <h6>Copyright &copy; 2017 - Sharla Gelfand | 
+            Rendered by <a href="https://gohugo.io" title="Hugo">Hugo</a> |
+            <a href="/index.xml">Subscribe</a></h6>
+    </footer>
+</div>
+<script src="/js/scripts.js"></script>
+</body>
+
+</html>
