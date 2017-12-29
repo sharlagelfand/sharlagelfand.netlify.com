@@ -54,7 +54,7 @@
 
 <article>
 
-    <h1>Tidying Toronto Open Data</h1>
+    <h1>Tidying and mapping Toronto open data</h1>
 
     
         <aside>
@@ -67,24 +67,12 @@
 
         
 
-        <li>18 min read</li>
+        <li>17 min read</li>
     </ul>
 </aside>
     
 
-    <script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
-<script src="/rmarkdown-libs/jquery/jquery.min.js"></script>
-<link href="/rmarkdown-libs/leaflet/leaflet.css" rel="stylesheet" />
-<script src="/rmarkdown-libs/leaflet/leaflet.js"></script>
-<link href="/rmarkdown-libs/leafletfix/leafletfix.css" rel="stylesheet" />
-<link href="/rmarkdown-libs/leaflet-label/leaflet.label.css" rel="stylesheet" />
-<script src="/rmarkdown-libs/leaflet-label/leaflet.label.js"></script>
-<script src="/rmarkdown-libs/Proj4Leaflet/proj4-compressed.js"></script>
-<script src="/rmarkdown-libs/Proj4Leaflet/proj4leaflet.js"></script>
-<script src="/rmarkdown-libs/leaflet-binding/leaflet.js"></script>
-
-
-<p>According to the <a href="https://publicsectordigest.com/open-cities-index-results-2017">2017 Open Cities Index Results</a>, the city of Toronto ranks second in Canada in terms of open data maturity. With 250+ data sets, this initiative makes it easy to access information on business, culture, environment, finance, health, parks + rec, public safety, transportation, and more.</p>
+    <p>According to the <a href="https://publicsectordigest.com/open-cities-index-results-2017">2017 Open Cities Index Results</a>, the city of Toronto ranks second in Canada in terms of open data maturity. With 250+ data sets, this initiative makes it easy to access information on business, culture, environment, finance, health, parks + rec, public safety, transportation, and more.</p>
 <p>I was curious to poke around open data and learn something new along the way, both in terms of Toronto and the R ecosystem. I’d never done any sort of mapping in R so chose something that could be visualized easily and was interesting to me, and chose to look into the data on Toronto Public Health’s sexual health clinics, available <a href="https://www1.toronto.ca/wps/portal/contentonly?vgnextoid=793eecbc9c916410VgnVCM10000071d60f89RCRD&amp;vgnextchannel=09c6e03bb8d1e310VgnVCM10000071d60f89RCRD">here</a>.</p>
 <p>According to the site, it includes: clinic name, location (i.e., intersection), address, contact number, drop-in and appointment hours, and services provided by each clinic. Since some of these attributes are plural (two kinds of hours and <em>services</em>, as in more than one service), I anticipated that the data wouldn’t be in the tidy format (each observation is one row, and each column is a variable) that is preferable for easy manipulation and plotting. And I was right!</p>
 <p><img src="/images/tidying-toronto-open-data/raw-data-1.png" /> <img src="/images/tidying-toronto-open-data/raw-data-2.png" /></p>
@@ -365,6 +353,7 @@ sexual_health_clinics %&gt;%
 <div id="mapping-the-data" class="section level3">
 <h3>Mapping the data</h3>
 <p>As I mentioned, I’m using the <a href="https://rstudio.github.io/leaflet/"><code>leaflet</code></a> package to map the data. I’d never used this before, or done any mapping in R, but it was pretty straightforward! Everything I know about <code>leaflet</code> is from RStudio’s documentation, linked above, and from looking at the <a href="http://shiny.rstudio.com/gallery/superzip-example.html">SuperZip</a> example’s <a href="https://github.com/rstudio/shiny-examples/blob/master/063-superzip-example/server.R">server code</a> to determine how to edit the marker’s popup text, and how to make it appear when clicked.</p>
+<p>An aside – I learn pretty well by example! <a href="https://twitter.com/ma_salmon">Maelle Salmon</a>’s <a href="http://www.masalmon.eu/">blog</a> is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge’s <a href="https://github.com/juliasilge">GitHub</a> to see how she did it and try to copy along! 👯</p>
 <p>I’m using <code>purrr::pmap()</code> to take each clinic’s information (name, address, and phone number), and constructing the markers’ text so it’s displayed nicely. Then, I set a longitude and latitude for the map (I looked one up that’s fairly central to all the clinics), set how zoomed in it should be, and add markers for each of the clinics using their latitude and longitude. It’s so easy!</p>
 <pre class="r"><code>library(leaflet)
 
@@ -374,23 +363,19 @@ sexual_health_clinics &lt;- sexual_health_clinics %&gt;%
                                    address,
                                    contact_number),
                               function(clinic_name, clinic_address, contact_number) 
-                                paste(&quot;&lt;b&gt;&quot;, clinic_name, &quot;&lt;/b&gt;&quot;,
-                                      address,
-                                      contact_number,
-                                      sep = &quot;&lt;br&gt;&quot;)))
+                                paste(&quot;&lt;b&gt;&quot;, clinic_name, &quot;&lt;/b&gt;&lt;br&gt;&quot;,
+                                      address, &quot;&lt;br&gt;&quot;,
+                                      contact_number)))
 
 leaflet(data = sexual_health_clinics) %&gt;% 
   setView(lng = -79.38, lat = 43.73, zoom = 11) %&gt;% 
   addTiles() %&gt;% 
   addMarkers(~longitude, ~latitude, popup = ~popup_details, label = ~clinic_name,
                  labelOptions = labelOptions(direction = &quot;top&quot;))</code></pre>
-<div id="htmlwidget-1" style="width:672px;height:480px;" class="leaflet html-widget"></div>
-<script type="application/json" data-for="htmlwidget-1">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}}},"setView":[[43.73,-79.38],11,[]],"calls":[{"method":"addTiles","args":["//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",null,null,{"minZoom":0,"maxZoom":18,"maxNativeZoom":null,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"continuousWorld":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":null,"unloadInvisibleTiles":null,"updateWhenIdle":null,"detectRetina":false,"reuseTiles":false,"attribution":"&copy; <a href=\"http://openstreetmap.org\">OpenStreetMap<\/a> contributors, <a href=\"http://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA<\/a>"}]},{"method":"addMarkers","args":[[43.713921,43.780319,43.757241,43.656723,43.659952,43.665012,43.719322,43.741978,43.772098,43.660454,43.805016,43.709953,43.668133,43.768093],[-79.457496,-79.42181,-79.52039,-79.452271,-79.378948,-79.413239,-79.572098,-79.589455,-79.257028,-79.386177,-79.223172,-79.332975,-79.492455,-79.412888],null,null,null,{"clickable":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},["<b><br>Birth Control and Sexual Health Centre<br><\/b><br>Suite 403, 960 Lawrence Ave. W., Toronto, On M6A 3B5<br>416-789-4541","<b><br>Black Creek Community Health Centre (Sheridan Mall Site)<br><\/b><br>North York Sheridan Mall, Unit 5 2202 Jane St., Toronto, On M2M 1A4<br>416-249-8000","<b><br>Black Creek Community Health Centre (Yorkgate mall Site)<br><\/b><br>1 York Gate Blvd., Toronto, On M3N 3A1<br>416-246-2388","<b><br>Crossways Clinic<br><\/b><br>2340 Dundas St. W., Toronto, On M6P 4A9<br>416-392-0999","<b><br>Hassle Free Clinic<br><\/b><br>66 Gerrard St. E., 2nd Floor, Toronto, On M5B 1G3<br>416-922-0566","<b><br>Immigrant Women's Health Center<br><\/b><br>Suite 200, 489 College St., Toronto, On M6G 1A5<br>416-323-9986","<b><br>Rexdale Community Health Center<br><\/b><br>8 Taber Rd., Toronto, On M9W 3A4<br>416-744-0066","<b><br>Rexdale Youth Resource Center<br><\/b><br>1530 Albion Rd., Toronto, On M9V 1B4<br>416-741-8714","<b><br>Scarborough Sexual Health Clinic<br><\/b><br>Scarborough Civic Center 160 Borough Dr., Toronto, On M1P 4N8<br>416-338-7438","<b><br>Special Treatment Clinic<br><\/b><br>8th Floor, 790 Bay St., Toronto, On M5G 1N8<br>416-351-3800 ext 2207","<b><br>Taibu Community Health Center<br><\/b><br>27 Tapscott Rd., Toronto, On M1B 4Y7<br>416-644-3536","<b><br>The Gate<br><\/b><br>Flemingdon Health Center 10 Gateway Blvd., Toronto, On M3C 3A1<br>416-429-4991","<b><br>The Jane Street Clinic<br><\/b><br>662 Jane St., Toronto, On M6N 4A7<br>416-338-7272","<b><br>The Talk Shop<br><\/b><br>5110 Yonge St., Toronto, On M2N 6M1<br>416-338-7000"],null,null,null,["Birth Control and Sexual Health Centre","Black Creek Community Health Centre (Sheridan Mall Site)","Black Creek Community Health Centre (Yorkgate mall Site)","Crossways Clinic","Hassle Free Clinic","Immigrant Women's Health Center","Rexdale Community Health Center","Rexdale Youth Resource Center","Scarborough Sexual Health Clinic","Special Treatment Clinic","Taibu Community Health Center","The Gate","The Jane Street Clinic","The Talk Shop"],{"clickable":false,"noHide":false,"direction":"top","opacity":1,"offset":[12,-15],"textsize":"10px","textOnly":false,"style":null,"zoomAnimation":true,"className":""},null]}],"limits":{"lat":[43.656723,43.805016],"lng":[-79.589455,-79.223172]}},"evals":[],"jsHooks":[]}</script>
-<p>An aside – I learn pretty well by example! <a href="https://twitter.com/ma_salmon">Maelle Salmon</a>’s <a href="http://www.masalmon.eu/">blog</a> is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge’s <a href="https://github.com/juliasilge">GitHub</a> to see how she did it and try to copy along! 👯</p>
 </div>
 <div id="shiny-app" class="section level3">
 <h3>Shiny app</h3>
-<p>This example map is bare bones, but the idea is fleshed out a little more in a Shiny app, which you can find <a href="https://sharlagelfand.shinyapps.io/toronto-sexual-health-clinics/">here</a>. I added in a little more interactivity, namely that a clinic’s drop-in hours, appointment hours, and additional services pop up when you click on it in the map. It also lists the services that all clinics offer. All the code is available <a href="https://github.com/sharlagelfand/toronto-sexual-health-clinics">here</a> on my GitHub.</p>
+<p>You can see the map in a Shiny app, which you can find <a href="https://sharlagelfand.shinyapps.io/toronto-sexual-health-clinics/">here</a>. I added in a little more interactivity, namely that a clinic’s drop-in hours, appointment hours, and additional services pop up when you click on it in the map. It also lists the services that all clinics offer. All the code is available <a href="https://github.com/sharlagelfand/toronto-sexual-health-clinics">here</a> on my GitHub.</p>
 <div class="figure">
 <img src="/images/tidying-toronto-open-data/shiny-app.png" />
 

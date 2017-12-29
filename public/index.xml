@@ -21,12 +21,13 @@
     </item>
     
     <item>
-      <title>Tidying Toronto Open Data</title>
+      <title>Tidying and mapping Toronto open data</title>
       <link>/posts/tidying-toronto-open-data/</link>
       <pubDate>Wed, 27 Dec 2017 00:00:00 +0000</pubDate>
       
       <guid>/posts/tidying-toronto-open-data/</guid>
-      <description>According to the 2017 Open Cities Index Results, the city of Toronto ranks second in Canada in terms of open data maturity. With 250+ data sets, this initiative makes it easy to access information on business, culture, environment, finance, health, parks + rec, public safety, transportation, and more.</description>
+      <description>According to the 2017 Open Cities Index Results, the city of Toronto ranks second in Canada in terms of open data maturity. With 250+ data sets, this initiative makes it easy to access information on business, culture, environment, finance, health, parks + rec, public safety, transportation, and more.
+I was curious to poke around open data and learn something new along the way, both in terms of Toronto and the R ecosystem.</description>
     </item>
     
     <item>

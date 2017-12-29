@@ -300,10 +300,12 @@ sexual_health_clinics %>%
 
 As I mentioned, I'm using the [`leaflet`](https://rstudio.github.io/leaflet/) package to map the data. I'd never used this before, or done any mapping in R, but it was pretty straightforward! Everything I know about `leaflet` is from RStudio's documentation, linked above, and from looking at the [SuperZip](http://shiny.rstudio.com/gallery/superzip-example.html) example's [server code](https://github.com/rstudio/shiny-examples/blob/master/063-superzip-example/server.R) to determine how to edit the marker's popup text, and how to make it appear when clicked.
 
+An aside -- I learn pretty well by example! [Maelle Salmon](https://twitter.com/ma_salmon)'s [blog](http://www.masalmon.eu/) is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge's [GitHub](https://github.com/juliasilge) to see how she did it and try to copy along! `r emo::ji("dancers")`
+
 I'm using `purrr::pmap()` to take each clinic's information (name, address, and phone number),
 and constructing the markers' text so it's displayed nicely. Then, I set a longitude and latitude for the map (I looked one up that's fairly central to all the clinics), set how zoomed in it should be, and add markers for each of the clinics using their latitude and longitude. It's so easy! 
 
-```{r leaflet}
+```{r leaflet, eval=FALSE}
 library(leaflet)
 
 sexual_health_clinics <- sexual_health_clinics %>%
@@ -312,10 +314,9 @@ sexual_health_clinics <- sexual_health_clinics %>%
                                    address,
                                    contact_number),
                               function(clinic_name, clinic_address, contact_number) 
-                                paste("<b>", clinic_name, "</b>",
-                                      address,
-                                      contact_number,
-                                      sep = "<br>")))
+                                paste("<b>", clinic_name, "</b><br>",
+                                      address, "<br>",
+                                      contact_number)))
 
 leaflet(data = sexual_health_clinics) %>% 
   setView(lng = -79.38, lat = 43.73, zoom = 11) %>% 
@@ -324,11 +325,9 @@ leaflet(data = sexual_health_clinics) %>%
                  labelOptions = labelOptions(direction = "top"))
 ```
 
-An aside -- I learn pretty well by example! [Maelle Salmon](https://twitter.com/ma_salmon)'s [blog](http://www.masalmon.eu/) is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge's [GitHub](https://github.com/juliasilge) to see how she did it and try to copy along! `r emo::ji("dancers")`
-
 ### Shiny app
 
-This example map is bare bones, but the idea is fleshed out a little more in a Shiny app, which you can find [here](https://sharlagelfand.shinyapps.io/toronto-sexual-health-clinics/). I added in a little more interactivity, namely that a clinic's drop-in hours, appointment hours, and additional services pop up when you click on it in the map. It also lists the services that all clinics offer. All the code is available [here](https://github.com/sharlagelfand/toronto-sexual-health-clinics) on my GitHub.
+You can see the map in a Shiny app, which you can find [here](https://sharlagelfand.shinyapps.io/toronto-sexual-health-clinics/). I added in a little more interactivity, namely that a clinic's drop-in hours, appointment hours, and additional services pop up when you click on it in the map. It also lists the services that all clinics offer. All the code is available [here](https://github.com/sharlagelfand/toronto-sexual-health-clinics) on my GitHub.
 
 ![](/images/tidying-toronto-open-data/shiny-app.png)
 
