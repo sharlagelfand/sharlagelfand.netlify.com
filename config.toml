@@ -22,6 +22,6 @@ disqusShortname = "sharlagelfand"
     instagram = ""
 
 [params]
-    tagline = "Blogs about R."
+    tagline = ""
 
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
