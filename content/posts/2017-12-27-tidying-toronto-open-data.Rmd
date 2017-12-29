@@ -256,6 +256,8 @@ So, I decided to just scrape the web instead `r emo::ji("upside_down_face")`
 
 I found [this site](http://geolytica.com/) which gives you the latitude and longitude for a given postal code, and wrote a function to extract those values, using [`rvest`](https://blog.rstudio.com/2014/11/24/rvest-easy-web-scraping-with-r/). [Here](https://www.analyticsvidhya.com/blog/2017/03/beginners-guide-on-web-scraping-in-r-using-rvest-with-hands-on-knowledge/) is a tutorial I like on how to use `rvest`, but there are tons out there.
 
+![](/images/tidying-toronto-open-data/finding-lat-long.png)
+
 ```{r coordinates_by_postal_code, message=FALSE}
 library(rvest)
 

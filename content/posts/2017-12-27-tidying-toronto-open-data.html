@@ -245,6 +245,10 @@ sexual_health_clinics &lt;- sexual_health_clinics %&gt;%
 <p>If you’re trying to map out data in the US, you’re in luck. There is an (abandoned? orphaned?) R package <a href="https://cran.r-project.org/web/packages/zipcode/zipcode.pdf"><code>zipcode</code></a> that contains the latitude and longitude for US zip codes. There is no such corresponding <code>postalcode</code> package! I thought about creating a package but after some sleuthing discovered <a href="https://gis.stackexchange.com/questions/41/where-can-i-find-canadian-postal-code-geometries">Canadian drama</a>, which is that you have to purchase (!) a data set from Statistics Canada to get all of this data.</p>
 <p>So, I decided to just scrape the web instead 🙃</p>
 <p>I found <a href="http://geolytica.com/">this site</a> which gives you the latitude and longitude for a given postal code, and wrote a function to extract those values, using <a href="https://blog.rstudio.com/2014/11/24/rvest-easy-web-scraping-with-r/"><code>rvest</code></a>. <a href="https://www.analyticsvidhya.com/blog/2017/03/beginners-guide-on-web-scraping-in-r-using-rvest-with-hands-on-knowledge/">Here</a> is a tutorial I like on how to use <code>rvest</code>, but there are tons out there.</p>
+<div class="figure">
+<img src="/images/tidying-toronto-open-data/finding-lat-long.png" />
+
+</div>
 <pre class="r"><code>library(rvest)
 
 coordinates_by_postal_code &lt;- function(postal_code){
