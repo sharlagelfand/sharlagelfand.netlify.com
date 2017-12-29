@@ -1,23 +1,24 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Posts on Kiera</title>
+    <title>Posts on Sharla Gelfand</title>
     <link>/post/</link>
-    <description>Recent content in Posts on Kiera</description>
+    <description>Recent content in Posts on Sharla Gelfand</description>
     <generator>Hugo -- gohugo.io</generator>
-    <copyright>Copyright &amp;copy; 2017 - Author Name</copyright>
-    <lastBuildDate>Thu, 23 Jul 2015 21:13:14 -0500</lastBuildDate>
+    <copyright>Copyright &amp;copy; 2017 - Sharla Gelfand</copyright>
+    <lastBuildDate>Wed, 27 Dec 2017 00:00:00 +0000</lastBuildDate>
     
 	<atom:link href="/post/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
-      <title>Hello R Markdown</title>
-      <link>/post/2015-07-23-r-rmarkdown/</link>
-      <pubDate>Thu, 23 Jul 2015 21:13:14 -0500</pubDate>
+      <title>Tidying Toronto Open Data</title>
+      <link>/post/tidying-toronto-open-data/</link>
+      <pubDate>Wed, 27 Dec 2017 00:00:00 +0000</pubDate>
       
-      <guid>/post/2015-07-23-r-rmarkdown/</guid>
-      <description>R Markdown This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see http://rmarkdown.</description>
+      <guid>/post/tidying-toronto-open-data/</guid>
+      <description>According to the 2017, Open Cities Index Results, the city of Toronto ranks second in Canada in terms of open data maturity. With 250+ datasets, this initiative makes it easier to access information on business, culture, environment, finance, health, parks + rec, public safety, transportation, and more.
+I was curious to poke around open data and learn something new along the way, both in terms of Toronto and the R ecosystem.</description>
     </item>
     
   </channel>
