@@ -1,0 +1,341 @@
+---
+title: "Tidying and mapping Toronto open data"
+author: "Sharla Gelfand"
+date: '2017-12-27'
+slug: tidying-toronto-open-data
+---
+
+```{r setup, include = FALSE}
+library(emo)
+```
+
+According to the [2017 Open Cities Index Results](https://publicsectordigest.com/open-cities-index-results-2017),
+the city of Toronto ranks second in Canada in terms of open data maturity. With
+250+ data sets, this initiative makes it easy to access information on business,
+culture, environment, finance, health, parks + rec, public safety, transportation,
+and more. 
+
+I was curious to poke around open data and learn something new along the way,
+both in terms of Toronto and the R ecosystem. I'd never done any sort of mapping in R
+so chose something that could be visualized easily and was interesting to me,
+and chose to look into the data on Toronto Public Health's sexual health clinics,
+available [here](https://www1.toronto.ca/wps/portal/contentonly?vgnextoid=793eecbc9c916410VgnVCM10000071d60f89RCRD&vgnextchannel=09c6e03bb8d1e310VgnVCM10000071d60f89RCRD).
+
+According to the site, it includes: clinic name, location (i.e., intersection),
+address, contact number, drop-in and appointment hours, and services provided by each clinic.
+Since some of these attributes are plural (two kinds of hours and *services*, as in more than one service),
+I anticipated that the data wouldn't be in the tidy format (each observation is one row, and each column is a variable)
+that is preferable for easy manipulation and plotting. And I was right!
+
+![](/images/tidying-toronto-open-data/raw-data-1.png)
+![](/images/tidying-toronto-open-data/raw-data-2.png)
+
+Inspired by Miles McBain's post, [Tidying the Australian Same Sex Marriage Postal Survey Data with R](https://medium.com/@miles.mcbain/tidying-the-australian-same-sex-marriage-postal-survey-data-with-r-5d35cea07962),
+this post is a case study on how I took this data, found in the wild (ok, not that wild -- given that this is from an open data initiative, it's a little easier to work with than a data from the *true* wild), and manipulate
+it to fit into the tidy paradigm, so that I may fall into a [pit of success](https://twitter.com/hadleywickham/status/748210691593502720).
+
+This data set has a few quirks (names/addresses spanning multiple lines, merged column names, variable names in the second row of the sheet, blank lines, and overall non-tidyness), but it's in pretty good shape and just
+needs some massaging `r emo::ji("massage")`
+
+The data is in an `.xlsx` file, which the `readxl` package can handle!
+
+```{r reading_data, message=FALSE}
+library(readxl)
+library(dplyr)
+
+sexual_health_clinics <- read_excel("data/tidying-toronto-open-data/Sexual Health Clinics Data Set.xlsx")
+sexual_health_clinics %>% glimpse()
+```
+
+Now that it's read in, we can see how R has interpreted some of the oddities. 
+Any blank lines are filled with NA (the literal missing value NA).
+The merged column name (Operational Hours) didn't merge in practice, and only
+applies to the first column it was used for -- so the second column of hours, 
+appointment hours, is renamed as `X__1`. I was using a previous version of the
+`readxl` package before and it actually named that column "NA" -- the literal string, not a missing value -- but this looks to be a new change in the newer version. I'm happy with that, since a column named "NA" is quite confusing! The drop-in hours and appointment hours are, as expected, in the first row of the actual data.
+
+### Fixing column names
+
+These column names will be difficult to work with (there are spaces in them, extra
+white space at the end of some, and one named `X__1`), so I use the `janitor` [package](https://github.com/sfirke/janitor) 
+to clean up the names, and rename the drop-in hours and appointment hours columns appropriately.
+
+```{r clean_names}
+library(janitor)
+
+sexual_health_clinics <- sexual_health_clinics %>%
+  clean_names() %>%
+  rename(drop_in_hours = operational_hours,
+         appointment_hours = x_1)
+
+sexual_health_clinics <- sexual_health_clinics[-1,]
+
+sexual_health_clinics %>% glimpse()
+```
+
+The `clean_names()` function converts everything to lowercase, strips extra white space, replaces any spaces with underscores, and removes duplicate underscores, making columns much easier to reference.
+I also got rid of the first row, since all it contained was those embedded column names, and no data.
+
+### Removing extra rows
+
+The `janitor` package also includes a function to remove rows that are all NA -- this is useful since we had all those NA rows at the bottom of the file, and NA values dispersed throughout.
+
+```{r remove_empty_rows}
+sexual_health_clinics <- sexual_health_clinics %>%
+  remove_empty_rows()
+
+nrow(sexual_health_clinics)
+```
+
+If you're curious, there's a corresponding `remove_empty_cols()` function as well. Major shoutout to Sam Firke for all the useful functions in `janitor`. Pit of success, I'm telling ya!
+
+### Fixing records split across multiple lines
+
+The next step is to take care of the clinic names and addresses that were split across two lines. Here's the before:
+
+```{r two_lines_names}
+sexual_health_clinics[10:15,] %>% 
+  select(clinic_name, address)
+```
+
+If there's a seamless way to do this, I don't know it! Instead, I look at the previous and next row for each name/address. If the current and next row are both not NA, then append the next row to the current. If that's not the case, just keep the current row. That ensures that the second part of the name is just stuck on to the first part. 
+
+Once that's done, we have to get *rid* of the second part -- I do this by looking at the previous row. If it's not NA, that means we're looking at that second part, since that's the only situation where the previous row isn't missing. Thankful for all those NAs now! When that's the case, we want to replace it with an NA, to make for easier filling later on.
+
+```{r condense_name}
+sexual_health_clinics <- sexual_health_clinics %>%
+  mutate(previous_clinic_name = lag(clinic_name),
+         next_clinic_name = lead(clinic_name),
+         clinic_name = if_else(!is.na(clinic_name) & !is.na(next_clinic_name), 
+                               paste(clinic_name, next_clinic_name), 
+                               clinic_name),
+         clinic_name = if_else(!is.na(previous_clinic_name), NA_character_, clinic_name)) %>%
+  select(-previous_clinic_name, -next_clinic_name)
+```
+
+And do the same for the address. You can absolutely do these in one step, but I like to split things up and check the results along the way, to ensure each step does what I intend it to.
+
+```{r condense_address}
+sexual_health_clinics <- sexual_health_clinics %>%
+  mutate(previous_address = lag(address),
+         next_address = lead(address),
+         address = if_else(!is.na(address) & !is.na(next_address), 
+                           paste(address, next_address), 
+                           address),
+         address = if_else(!is.na(previous_address), NA_character_, address)) %>%
+  select(-previous_address, -next_address)
+```
+
+Now, we can see that both the name and address are on a single line.
+
+```{r single_line_names}
+sexual_health_clinics[10:15,] %>% 
+  select(clinic_name, address)
+```
+
+### Filling in clinic names
+
+Since there are a lot of NA values in the `clinic_name` column, we want to fill these
+in so we know which rows correspond to which clinic. Luckily we can just do this by replacing
+any NA value with the nearest non-NA value from above. Another way to think about this
+is that we fill the non-NA values *down* -- this way of thinking about it is useful,
+since that's the direction we need to indicate in the `tidyr::fill()` function. The
+default argument is, in fact, "down", but it never hurts to be explicit.
+
+```{r fill_names}
+library(tidyr)
+
+sexual_health_clinics <- sexual_health_clinics %>%
+  fill(clinic_name, .direction = "down")
+
+head(sexual_health_clinics)
+```
+
+### Parsing the services
+
+For later use, I want a list of which services are offered by *all* clinics,
+and which services are unique to clinics, or offered in addition to what all offer.
+This doesn't have much to do with tidying the data, but needs to be done before I do so!
+
+```{r services}
+services_df <- sexual_health_clinics %>%
+  mutate(n_clinics_total = n_distinct(clinic_name)) %>%
+  group_by(services) %>%
+  mutate(n_clinics_offer = n_distinct(clinic_name),
+         all_clinics_offer = n_clinics_offer == n_clinics_total) %>%
+  distinct(services, all_clinics_offer)
+
+services_df
+```
+
+### Tidying!
+
+Now comes the step of really getting the data into a tidy format! To do this,
+I create [list-columns](https://jennybc.github.io/purrr-tutorial/ls13_list-columns.html) for each variable that has multiple entries. For example, if we collapse all the services for a clinic into a list,
+then we can have a *single row* for each clinic, and a variable that is a *list* of all services it offers, instead of a row for every service, for every clinic.
+
+I'm first creating two new data frames, one which contains services that all clinics offer,
+and one that contains services that are unique to each clinic. Again, this is for later use and not necessary for tidying the data straight out of the box!
+
+```{r tidy_services}
+services_all <- sexual_health_clinics %>%
+  inner_join(services_df %>% 
+               filter(all_clinics_offer), by = "services") %>%
+  group_by(clinic_name) %>%
+  summarise(services_all = list(services[!is.na(services)]))
+
+services_unique <- sexual_health_clinics %>%
+  inner_join(services_df %>% 
+               filter(!all_clinics_offer), by = "services") %>%
+  group_by(clinic_name) %>%
+  summarise(services_unique = list(services[!is.na(services)]))
+```
+
+The `list()` function is what creates list-columns out of each column. We summarise all the values for each clinic name (the variable used in `group_by()`) by creating a list out of them.
+
+Next, I'm combining these new data frames into my original data frame, so that all the information is in one place, and creating list-columns out of the remaining variables.
+
+```{r list_cols}
+sexual_health_clinics <- sexual_health_clinics %>%
+  group_by(clinic_name) %>%
+  summarise_all(funs(list(.[!is.na(.)]))) %>%
+  left_join(services_all, by = "clinic_name") %>% 
+  left_join(services_unique, by = "clinic_name")
+```
+
+The `summarise_all()` function is useful because I want to do this for every column (except `clinic_name`, the grouping variable),
+and it cuts down on the need to copy and paste the same function (`list(var[!is.na(var)]))`) over and over again. I've also made sure to exclude any NA values from the list (the `!is.na(.)` bit above), since there are NA values dispersed throughout the initial data frame that we don't need to keep around.
+
+The final result here is a tidy data frame, with one row for each clinic, and each column representing a variable.
+
+```{r show_tidy_data}
+sexual_health_clinics
+```
+
+You'll notice that `clinic_location`, `address`, and `contact_number` are all list cols where each element of the list is a character vector of length 1 -- this is fine, and they look totally fine in the RStudio viewer:
+
+![](/images/tidying-toronto-open-data/list-cols_look-fine.png)
+
+but if you want to tidy that up you can do so as well, by unlisting those columns.
+
+```{r unlist_cols}
+sexual_health_clinics %>%
+  group_by(clinic_name) %>%
+  mutate_at(vars(clinic_location:contact_number), funs(unlist)) %>%
+  select(clinic_name, clinic_location, address, contact_number)
+```
+
+I don't know of a different way of doing this -- using `summarise_at()` above instead of `summarise_all()` wouldn't work, since there are `NA` values that we get rid of as a benefit of using `list(.[!is.na(.)]))` above. I could probably write a function but this is honestly easier! 
+
+The data set is now in a tidy format, and we can start to do stuff with it. As I alluded to earlier, I'm interested in mapping this data using the [`leaflet` package](https://rstudio.github.io/leaflet/). From the docs there, I figured out that we need the latitude and longitude in order to do so, which we can get from the postal code.
+
+### Getting latitude and longitude
+
+First, I parse out the postal code from each address. It should be the last 7 characters (6 characters plus a space in the middle). I stripped any white space from the address first, just in case.
+
+```{r postal_code}
+library(stringr)
+
+sexual_health_clinics <- sexual_health_clinics %>%
+  mutate(address = str_trim(address),
+         postal_code = substr(address, start = nchar(address) - 6, stop = nchar(address)),
+         postal_code = gsub(" ", "", postal_code))
+```
+
+Then, I checked that each postal code follows the proper regex for a Canadian postal code, which I found from [here](https://stackoverflow.com/questions/1146202/canadian-postal-code-validation). I knew postal codes went letter-number-letter number-letter-number, but learned from above that they can't contain D, F, I, O, Q, or U, and can't start with W or Z!
+
+```{r postal_code_regex}
+sexual_health_clinics %>% 
+  filter(postal_code != str_extract(postal_code, regex("[ABCEGHJKLMNPRSTVXY][0-9][ABCEGHJKLMNPRSTVWXYZ] ?[0-9][ABCEGHJKLMNPRSTVWXYZ][0-9]"))) %>%
+  nrow == 0
+```
+
+If you're trying to map out data in the US, you're in luck. There is an (abandoned? orphaned?) R package [`zipcode`](https://cran.r-project.org/web/packages/zipcode/zipcode.pdf) that contains the latitude and longitude for US zip codes. There is no such corresponding `postalcode` package! I thought about creating a package but after some sleuthing discovered [Canadian drama](https://gis.stackexchange.com/questions/41/where-can-i-find-canadian-postal-code-geometries), which is that you have to purchase (!) a data set from Statistics Canada to get all of this data.
+
+So, I decided to just scrape the web instead `r emo::ji("upside_down_face")`
+
+I found [this site](http://geolytica.com/) which gives you the latitude and longitude for a given postal code, and wrote a function to extract those values, using [`rvest`](https://blog.rstudio.com/2014/11/24/rvest-easy-web-scraping-with-r/). [Here](https://www.analyticsvidhya.com/blog/2017/03/beginners-guide-on-web-scraping-in-r-using-rvest-with-hands-on-knowledge/) is a tutorial I like on how to use `rvest`, but there are tons out there.
+
+```{r coordinates_by_postal_code, message=FALSE}
+library(rvest)
+
+coordinates_by_postal_code <- function(postal_code){
+  coordinates_url <- paste0("http://geolytica.com/?locate=", postal_code)
+  
+  coordinates_url_text <- coordinates_url %>%
+    read_html() %>%
+    html_nodes("strong") %>%
+    html_text()
+  
+  coordinates <- coordinates_url_text[[2]] %>%
+    str_split(", ") %>% 
+    unlist
+  
+  latitude <- coordinates[[1]] %>%
+    as.numeric
+  
+  longitude <- coordinates[[2]] %>%
+    as.numeric
+  
+  return(c(latitude, longitude))
+}
+```
+
+Once the function is written, it's easy to use the `map()` function in `purrr` to scrape the coordinates for each postal code. I'm looking for a small number of coordinates here -- only 14 -- so it doesn't take long and you're not hitting the website a ton of times. Would I recommend this method for scraping a large amount of data? I don't know `r emo::ji("information_desk_person")`
+
+```{r scrape_coordinates, message=FALSE}
+library(purrr)
+
+sexual_health_clinics <- sexual_health_clinics %>%
+  mutate(coordinates = map(postal_code, coordinates_by_postal_code),
+         latitude = map_dbl(coordinates, 1),
+         longitude = map_dbl(coordinates, 2))
+
+sexual_health_clinics %>%
+  select(clinic_name, postal_code, latitude, longitude) %>% 
+  glimpse()
+```
+
+### Mapping the data
+
+As I mentioned, I'm using the [`leaflet`](https://rstudio.github.io/leaflet/) package to map the data. I'd never used this before, or done any mapping in R, but it was pretty straightforward! Everything I know about `leaflet` is from RStudio's documentation, linked above, and from looking at the [SuperZip](http://shiny.rstudio.com/gallery/superzip-example.html) example's [server code](https://github.com/rstudio/shiny-examples/blob/master/063-superzip-example/server.R) to determine how to edit the marker's popup text, and how to make it appear when clicked.
+
+I'm using `purrr::pmap()` to take each clinic's information (name, address, and phone number),
+and constructing the markers' text so it's displayed nicely. Then, I set a longitude and latitude for the map (I looked one up that's fairly central to all the clinics), set how zoomed in it should be, and add markers for each of the clinics using their latitude and longitude. It's so easy! 
+
+```{r leaflet}
+library(leaflet)
+
+sexual_health_clinics <- sexual_health_clinics %>%
+  group_by(clinic_name) %>%
+  mutate(popup_details = pmap(list(clinic_name, 
+                                   address,
+                                   contact_number),
+                              function(clinic_name, clinic_address, contact_number) 
+                                paste("<b>", clinic_name, "</b>",
+                                      address,
+                                      contact_number,
+                                      sep = "<br>")))
+
+leaflet(data = sexual_health_clinics) %>% 
+  setView(lng = -79.38, lat = 43.73, zoom = 11) %>% 
+  addTiles() %>% 
+  addMarkers(~longitude, ~latitude, popup = ~popup_details, label = ~clinic_name,
+                 labelOptions = labelOptions(direction = "top"))
+```
+
+An aside -- I learn pretty well by example! [Maelle Salmon](https://twitter.com/ma_salmon)'s [blog](http://www.masalmon.eu/) is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge's [GitHub](https://github.com/juliasilge) to see how she did it and try to copy along! `r emo::ji("dancers")`
+
+### Shiny app
+
+This example map is bare bones, but the idea is fleshed out a little more in a Shiny app, which you can find [here](https://sharlagelfand.shinyapps.io/toronto-sexual-health-clinics/). I added in a little more interactivity, namely that a clinic's drop-in hours, appointment hours, and additional services pop up when you click on it in the map. It also lists the services that all clinics offer. All the code is available [here](https://github.com/sharlagelfand/toronto-sexual-health-clinics) on my GitHub.
+
+![](/images/tidying-toronto-open-data/shiny-app.png)
+
+I like to play around with Shiny (Shiny dashboard specifically, in this case), so this is a fun example of combining open data, the tidyverse principles, mapping data, and interactivity. 
+
+I hope you enjoyed! `r emo::ji("wave")` `r emo::ji("world_map")`
+
+ps - 
+
+The open data set does not contain *all* information on Toronto Public Health's sexual health clinics. In particular, it contains no information on holiday closures, wait times, contact information for Toronto Public Health, etc. The best place to go for this information is the sexual health clinics [website](https://www.toronto.ca/community-people/health-wellness-care/health-clinics/sexual-health-clinics/). This blog post, and the shiny app, contain information licensed under the [Open Government Licence – Toronto](https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-licence/).
