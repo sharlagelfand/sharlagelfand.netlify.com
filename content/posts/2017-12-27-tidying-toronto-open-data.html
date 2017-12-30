@@ -288,11 +288,18 @@ sexual_health_clinics %&gt;%
 ## $ postal_code &lt;chr&gt; &quot;M6A3B5&quot;, &quot;M2M1A4&quot;, &quot;M3N3A1&quot;, &quot;M6P4A9&quot;, &quot;M5B1G3&quot;, ...
 ## $ latitude    &lt;dbl&gt; 43.71392, 43.78032, 43.75724, 43.65672, 43.65995, ...
 ## $ longitude   &lt;dbl&gt; -79.45750, -79.42181, -79.52039, -79.45227, -79.37...</code></pre>
+<p><strong>Edit:</strong> After I published this post, Maëlle Salmon rightly asked if I had checked that I was allowed to parse that site… I had not 😓</p>
+<p>She recommended rOpenSci’s <a href="https://github.com/ropenscilabs/robotstxt"><code>robotstxt</code> package</a> for checking if bots (a web scraper, in my case) are allowed to access parts of a site. The package’s <a href="https://cran.r-project.org/web/packages/robotstxt/vignettes/using_robotstxt.html">vignette</a> is useful, and Bob Rudis has two (more, I’m sure, but these are the two Maëlle linked me) blog posts on the topic – one <a href="https://rud.is/b/2017/11/03/i-for-one-welcome-our-forthcoming-new-robots-txt-overlords/">explaining the robots.txt file and some context</a> and one on more general web scraping <a href="https://rud.is/b/2017/04/23/decomposing-composers-with-r/">etiquette and best practices</a>, including rate limiting. I hear he is writing a book on it too, so keep an eye out for that 🔍</p>
+<p>Very lucky for me, I am allowed to scrape this page!</p>
+<pre class="r"><code>library(robotstxt)
+paths_allowed(&quot;http://geolytica.com/&quot;)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<p>Thanks for the tip, Maëlle! You should do this step of checking <em>before</em> running the code and publishing a blog post on it 🤓</p>
 </div>
 <div id="mapping-the-data" class="section level3">
 <h3>Mapping the data</h3>
 <p>As I mentioned, I’m using the <a href="https://rstudio.github.io/leaflet/"><code>leaflet</code></a> package to map the data. I’d never used this before, or done any mapping in R, but it was pretty straightforward! Everything I know about <code>leaflet</code> is from RStudio’s documentation, linked above, and from looking at the <a href="http://shiny.rstudio.com/gallery/superzip-example.html">SuperZip</a> example’s <a href="https://github.com/rstudio/shiny-examples/blob/master/063-superzip-example/server.R">server code</a> to determine how to edit the marker’s popup text, and how to make it appear when clicked.</p>
-<p>An aside – I learn pretty well by example! <a href="https://twitter.com/ma_salmon">Maelle Salmon</a>’s <a href="http://www.masalmon.eu/">blog</a> is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge’s <a href="https://github.com/juliasilge">GitHub</a> to see how she did it and try to copy along! 👯</p>
+<p>An aside – I learn pretty well by example! <a href="https://twitter.com/ma_salmon">Maëlle Salmon</a>’s <a href="http://www.masalmon.eu/">blog</a> is incredible for learning-as-you-go style tutorials/blog posts, and most of the time when I am stuck on something (especially blog related) I search Julia Silge’s <a href="https://github.com/juliasilge">GitHub</a> to see how she did it and try to copy along! 👯</p>
 <p>I’m using <code>purrr::pmap()</code> to take each clinic’s information (name, address, and phone number), and constructing the markers’ text so it’s displayed nicely. Then, I set a longitude and latitude for the map (I looked one up that’s fairly central to all the clinics), set how zoomed in it should be, and add markers for each of the clinics using their latitude and longitude. It’s so easy!</p>
 <pre class="r"><code>library(leaflet)
 
