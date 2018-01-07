@@ -1,6 +1,6 @@
 ---
 title: "Oh, the cold places I've lived"
-date: '2018-01-06'
+date: '2018-01-07'
 slug: oh-the-cold-places-ive-lived
 ---
 
@@ -8,7 +8,7 @@ slug: oh-the-cold-places-ive-lived
 library(emo)
 ```
 
-Yesterday was the [coldest January 5 in Toronto history](https://www.thestar.com/news/starweather/2018/01/05/its-a-record-breaking-22-c-in-toronto-right-now.html): -22 Celcius (-7.6 Fahrenheit).
+Friday was the [coldest January 5 in Toronto history](https://www.thestar.com/news/starweather/2018/01/05/its-a-record-breaking-22-c-in-toronto-right-now.html): -22 Celcius (-7.6 Fahrenheit).
 
 It was cold! It really was. I stayed in and worked from home because the thought of going out there was just not appealing.
 
@@ -64,12 +64,12 @@ city_weather <- city_weather %>%
   group_by(asos_code) %>%
   mutate(data = map(asos_code, ~ riem_measures(station = ., 
                                                date_start = "2013-01-01", 
-                                               date_end = "2018-01-04")))
+                                               date_end = "2018-01-07")))
 
 city_weather
 ```
 
-Now we have a tibble for each city, nested within our overall tibble.
+Now we have a data frame for each city, nested within our overall data frame.
 
 I'm actually going to unnest this, since I find it easier to work with when I can look at all the columns.
 
@@ -125,13 +125,13 @@ city_weather_summary <- city_weather_summary %>%
   mutate(month_day = strftime(date, format = "%m-%d"))
 
 city_weather_summary_previous_years <- city_weather_summary %>%
-  filter(date < "2017-01-04") %>%
+  filter(date < "2017-01-06") %>%
   group_by(city, month_day) %>%
   summarise(temp_c = mean(mean_temp_c, na.rm = TRUE),
             timeframe = "previous years' average")
 
 city_weather_summary_this_year <- city_weather_summary %>%
-  filter(date >= "2017-01-04") %>%
+  filter(date >= "2017-01-06") %>%
   select(city, month_day, temp_c = mean_temp_c) %>%
   mutate(timeframe = "this year")
 ```
@@ -152,7 +152,7 @@ Ok, this is where it gets totally hacky. In order to plot the data over time, I 
 ```{r make_date}
 city_weather_summary_combined <- city_weather_summary_combined %>%
   mutate(date = ymd(paste0("2017-", month_day)),
-         date = if_else(date > "2017-01-04", date, date + years(1)))
+         date = if_else(date > "2017-01-06", date, date + years(1)))
 ``` 
 
 Now, I want to compare the temperatures for the past year. I'm using [plotly](https://plot.ly/) because I love the interactivity, especially when the data is this close and has a lot of noise. You can also exclude cities by clicking on their name, or isolate them by double clicking. 
@@ -178,7 +178,7 @@ plot_ly(city_weather_summary_combined %>%
 
 The Calgary colds are cold, that's for sure. We see daily temperatures as low as -27.7 C (!), whereas Toronto only gets to -16.2 and Vancouver gets to... -3.2. I'm not sour about moving, I promise -- this analysis fails to take into account the impact of those grey, grey skies `r emo::ji("cloud")`.
 
-<!-- While Toronto didn't have a super hot summer this year, we did get some nice warm weather in September and October -- we saw average daily temperatures as high as 25 C in those months, while Calgary saw average daily temperatures as *low* as -1 C. I remember a lot of white halloweens as a child! -->
+While Toronto didn't have a super hot summer this year, we did get some nice warm weather in September and October -- we saw average daily temperatures as high as 25 C in those months, while Calgary saw average daily temperatures as *low* as -1 C. I remember a lot of white halloweens as a child!
 
 As I mentioned, Toronto didn't have a very hot summer this year. I was told to anticipate the worst of the worst: sticky, sticky days, with high humidity. Was this summer colder than previous ones?
 
