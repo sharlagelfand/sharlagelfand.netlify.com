@@ -1,0 +1,215 @@
+---
+title: "Oh, the cold places I've lived"
+date: '2018-01-06'
+slug: oh-the-cold-places-ive-lived
+---
+
+```{r emoji, include=FALSE}
+library(emo)
+```
+
+Yesterday was the [coldest January 5 in Toronto history](https://www.thestar.com/news/starweather/2018/01/05/its-a-record-breaking-22-c-in-toronto-right-now.html): -22 Celcius (-7.6 Fahrenheit).
+
+It was cold! It really was. I stayed in and worked from home because the thought of going out there was just not appealing.
+
+Then I thought about it a little more. I grew up in Calgary, Alberta, which is also... very cold. Earlier this week the zoo had to bring their penguins in because it was [too cold](https://www.thestar.com/news/canada/2017/12/31/calgary-zoo-decides-its-too-cold-outside-for-penguins.html) `r emo::ji("penguin")`. But Calgary is also famous for [chinooks](https://en.wikipedia.org/wiki/Chinook_wind), which are warm winds that can drastically change temperature -- having days go from -20 C to +10 C for a few hours was not uncommon!
+
+I moved to Vancouver for grad school and lived there for a few years. Vancouver is, of course, famous for mild temperatures and grey skies. I went to school on a mountain and the campus would close down when it snowed because busses couldn't get up there -- but that was maybe once a year. Some years I lived there it didn't snow at all, though people do love talking about how that wet cold really "gets in your bones". Right now, Vancouver is experiencing its [longest cold snap in over 30 years](http://www.cbc.ca/news/canada/british-columbia/when-vancouver-had-winter-1.3918910): average temperatures below +5 C for 33 days. I did have to correct myself because I initially wrote below -5 C... nope, +5 C. Boohoo `r emo::ji("snowflake")`
+
+Toronto is just... cold. No chinooks, no +5 Celcius winter temperatures.
+
+I thought it would be interesting to compare the weather in the three cities I've lived in (Calgary, Alberta; Vancouver, British Columbia; Toronto, Ontario) over the last 5ish years, since I started moving around. Did I make the right call? Should I have stayed in Calgary and continued to be cold forever? Did I move from Vancouver at a good time, since it's colder there now than ever before (well, in my lifetime)?
+
+Of course, moving around has a lot more to do with the weather. But this is just fun.
+
+I'm using the rOpenSci [`riem` package](https://github.com/ropensci/riem) that [Maelle Salmon](http://www.masalmon.eu/) created (psst -- did you know that Maelle is looking for a remote data scientist/software engineer job? She is one of the smartest, most helpful people I've ever encountered. Her blog is incredible, she has a great way of approaching problems, she makes awesome R packages, and she is such a delight. Are you hiring? Hire Maelle.).
+
+This package gets weather data from airports. Luckily, everywhere I've lived has an airport so this data set is good for me!
+
+First, let's look at the networks available.
+
+```{r networks}
+library(riem)
+
+riem_networks() 
+```
+
+I looked through this table and saw that for Canadian provinces, the code followed the convention "CA_`province abbreviation`_ASOS" -- e.g. `CA_AB_ASOS` for Alberta. I want to narrow down and get the station information for the cities I'm interested in. Some cities have multiple records, since they have multiple airports, so I'll choose one for each.
+
+```{r airport_codes, message=FALSE}
+library(purrr)
+library(stringr)
+library(dplyr)
+
+province_city_airport <- function(province_code, city){
+  riem_stations(network = province_code) %>%
+    filter(str_detect(tolower(name), city)) %>%
+    select(id, name)
+}
+
+province_city_airport("CA_AB_ASOS", "calgary")
+province_city_airport("CA_BC_ASOS", "vancouver")
+province_city_airport("CA_ON_ASOS", "toronto")
+```
+
+Turns out the code I'm looking for is actually `C` followed by the airport code -- `CYYC` for Calgary, `CYVR` for Vancouver, and `CYTZ` for Toronto (this is for the city airport, which is closer to me -- `CYYZ` also works!).
+
+Now, I'm going to grab the weather for the last 5 years for each of these airports. This part takes a couple minutes.
+
+```{r weather}
+city_weather <- tibble(city = c("Calgary", "Vancouver", "Toronto"),
+                       asos_code = c("CYYC", "CYVR", "CYTZ"))
+
+city_weather <- city_weather %>%
+  group_by(asos_code) %>%
+  mutate(data = map(asos_code, ~ riem_measures(station = ., 
+                                               date_start = "2013-01-01", 
+                                               date_end = "2018-01-04")))
+
+city_weather
+```
+
+Now we have a tibble for each city, nested within our overall tibble.
+
+I'm actually going to unnest this, since I find it easier to work with when I can look at all the columns.
+
+```{r unnest_data}
+library(tidyr)
+city_weather <- city_weather %>% 
+  unnest()
+
+head(city_weather)
+```
+
+There's a lot here -- I don't really know what it all is, but I'm really only interested in the time of the measurement (the varliable `valid`) and the temperature (`tmpf`).
+
+```{r select_cols}
+city_weather <- city_weather %>%
+  select(city, asos_code, valid, tmpf)
+
+head(city_weather)
+```
+
+These temperatures are in Fahrenheit, which unfortunately is meaningless to me! I'm using the [`weathermetrics` package](https://github.com/geanders/weathermetrics/) to convert to Celcius. I'm also going to extract the date from each timestamp for later use.
+
+```{r convert_temp, message=FALSE}
+library(weathermetrics)
+library(lubridate)
+
+city_weather <- city_weather %>%
+  mutate(temp_c = convert_temperature(tmpf, "f", "c"),
+         date = floor_date(valid, "day")) %>%
+  select(-tmpf)
+
+head(city_weather)
+```
+
+It looks like there's one measurement every hour for each city. I want to aggregate these to get an average for each day, so I'll take the daily mean for each day in each city.
+
+```{r mean_temp}
+city_weather_summary <- city_weather %>%
+  group_by(city, date) %>%
+  summarise(mean_temp_c = mean(temp_c))
+
+head(city_weather_summary)
+```
+
+I want to compare the average daily temperatures for the last year-ish to to four years prior. For example, I want to compare the temperature on January 5, 2018, to the January 5 temperatures from 2013 to 2017. I want to compare temperatures in summer 2017 to temperatures in summers 2013 through 2016.
+
+This is where things are going to get a little hacky. If you know of a better way to do this, please let me know!
+
+I'm going to extract the month-day portion from each date and create two new data frames -- one for previous years, and one for this year. I'm counting the first few days of 2017 in with previous years, and everything else in 2017 as part of this year.
+
+```{r avg_daily_temp}
+city_weather_summary <- city_weather_summary %>%
+  mutate(month_day = strftime(date, format = "%m-%d"))
+
+city_weather_summary_previous_years <- city_weather_summary %>%
+  filter(date < "2017-01-04") %>%
+  group_by(city, month_day) %>%
+  summarise(temp_c = mean(mean_temp_c, na.rm = TRUE),
+            timeframe = "previous years' average")
+
+city_weather_summary_this_year <- city_weather_summary %>%
+  filter(date >= "2017-01-04") %>%
+  select(city, month_day, temp_c = mean_temp_c) %>%
+  mutate(timeframe = "this year")
+```
+
+Then I'm putting them together into one data frame.
+
+```{r combine_df}
+city_weather_summary_combined <- city_weather_summary_previous_years %>%
+  bind_rows(city_weather_summary_this_year) %>%
+  arrange(city, month_day) %>%
+  mutate(temp_c = round(temp_c, 1))
+
+head(city_weather_summary_combined)
+```
+
+Ok, this is where it gets totally hacky. In order to plot the data over time, I need to "reconstruct" an actual date, since you can see that the `month_day` variable is a character, not any sort of date. I'm converting every date to be in 2017, then converting dates that are in *early January* to be 2018 dates. Again, this is because I lumped dates in early 2017 with the "previous years", since "this year's" January dates are early 2018. I'm confusing myself too, I know. I should have done this analysis on December 31 `r emo::ji("yum")`
+
+```{r make_date}
+city_weather_summary_combined <- city_weather_summary_combined %>%
+  mutate(date = ymd(paste0("2017-", month_day)),
+         date = if_else(date > "2017-01-04", date, date + years(1)))
+``` 
+
+Now, I want to compare the temperatures for the past year. I'm using [plotly](https://plot.ly/) because I love the interactivity, especially when the data is this close and has a lot of noise. You can also exclude cities by clicking on their name, or isolate them by double clicking. 
+
+Plotly gives me issues with missing data, so I'm first going to replace NA values with the value from the day before.
+
+```{r fill_data, message=FALSE}
+city_weather_summary_combined <- city_weather_summary_combined %>%
+  arrange(city, date) %>%
+  fill(temp_c)
+
+library(plotly)
+
+plot_ly(city_weather_summary_combined %>% 
+          filter(timeframe == "this year"), 
+        x = ~date, y = ~temp_c, color = ~city) %>%
+  add_lines() %>%
+  plotly::layout(title = "",
+                 xaxis = list(title = ""),
+                 yaxis = list(title = "Temperature (C)"),
+                 legend = list(orientation = 'h'))
+```
+
+The Calgary colds are cold, that's for sure. We see daily temperatures as low as -27.7 C (!), whereas Toronto only gets to -16.2 and Vancouver gets to... -3.2. I'm not sour about moving, I promise -- this analysis fails to take into account the impact of those grey, grey skies `r emo::ji("cloud")`.
+
+<!-- While Toronto didn't have a super hot summer this year, we did get some nice warm weather in September and October -- we saw average daily temperatures as high as 25 C in those months, while Calgary saw average daily temperatures as *low* as -1 C. I remember a lot of white halloweens as a child! -->
+
+As I mentioned, Toronto didn't have a very hot summer this year. I was told to anticipate the worst of the worst: sticky, sticky days, with high humidity. Was this summer colder than previous ones?
+
+```{r toronto_compare, echo=FALSE, warning=FALSE}
+plot_ly(city_weather_summary_combined %>% 
+          filter(city == "Toronto" & 
+                   "2017-07-01" <= date & date < "2017-10-01"),  
+        x = ~date, y = ~temp_c, color = ~timeframe) %>%
+  add_lines() %>%
+  plotly::layout(title = "Toronto",
+                 xaxis = list(title = ""),
+                 yaxis = list(title = "Temperature (C)"),
+                 legend = list(orientation = 'h'))
+```
+
+I know I'm comparing 1 year's data to the average of 4 previous years', but bear with me. We see that this year's August has many days colder than or similar to the previous years' average, while mid-to-late September was hotter than the past few years. Of course, I'm not looking at humidity -- there were a few very sticky days -- but it wasn't as unreasonably hot as everyone had warned (and, honestly, as I had hoped `r emo::ji("sunglasses")`).
+
+What about Vancouver? Did I make a good call avoiding this year's winter?
+
+```{r vancouver_compare, echo=FALSE, warning=FALSE}
+plot_ly(city_weather_summary_combined %>% 
+          filter(city == "Vancouver" & 
+                   date >= "2017-10-01"),  
+        x = ~date, y = ~temp_c, color = ~timeframe) %>%
+  add_lines() %>%
+  plotly::layout(title = "Vancouver",
+                 xaxis = list(title = ""),
+                 yaxis = list(title = "Temperature (C)"),
+                 legend = list(orientation = 'h'))
+```
+
+Some parts of November seemed to be warm but December and January are looking pretty cold so far! I've heard lots of reports of friends in Vancouver and Victoria dealing with colds they've never seen.
+
+I can't pretend that it's not cold in Toronto, maybe even colder than previous years. Global climate change is real (duh) and none of this analysis intends to explore that at all. But I'm thankful that my first Toronto summer wasn't too scorching, that we got a nice warm fall, and that I have a warm home to stay in when it's just too cold to bear outside. [Many are not so fortunate!](http://www.cbc.ca/news/canada/toronto/moss-park-armoury-winter-respite-open-early-1.4476362)
