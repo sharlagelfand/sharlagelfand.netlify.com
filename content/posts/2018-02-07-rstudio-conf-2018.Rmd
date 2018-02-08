@@ -111,9 +111,9 @@ Elaine has a blog where she outlines the [pains](http://www.datawoman.com/2018/0
 
 ### Emily Riederer: tidycf: turning analysis on its head by turning cashflows on their sides
 
-[Emily]([https://twitter.com/EmilyRiederer) started off her [talk](https://www.slideshare.net/tanyacash/rapid-prototyping-data-products-in-shiny-rstudioconf-2018) by outlining how important cashflow analysis is to Capital One's business analytics -- and yet, so much has been done in different tools (spreadsheets, powerpoint, word processor, databases, BI tools, etc) with poor documentation and reproducibility.
+[Emily](https://twitter.com/EmilyRiederer) started off her [talk](https://www.slideshare.net/tanyacash/rapid-prototyping-data-products-in-shiny-rstudioconf-2018) by outlining how important cashflow analysis is to Capital One's business analytics -- and yet, so much has been done in different tools (spreadsheets, powerpoint, word processor, databases, BI tools, etc) with poor documentation and reproducibility.
 
-Turns out that these complicated analyses actually follow a familiar analytical model that many of us are used to (import --> tidy --> explore --> commmunicate, you know the one), and that "special" business analyses aren't as special as we think -- a lot can be borrowed from tidy data + reproducibility principles! Based on this, her team built the internal `tidycf` R package.
+Turns out that these complicated analyses actually follow a familiar analytical model that many of us are used to (import --> tidy --> explore --> commmunicate, [you know the one](http://r4ds.had.co.nz/diagrams/data-science.png)), and that "special" business analyses aren't as special as we think -- a lot can be borrowed from tidy data + reproducibility principles! Based on this, her team built the internal `tidycf` R package.
 
 Something that I loved was that Emily focused so much of her talk around the process of building this package and integrating it into peoples' workflows. They focused on **empathy** (designed to meet users' needs -- there it is again!), **empowerment** (designed to teach and facilitate), and **engagement** (designed for extension with invitation to contribute).
 
@@ -153,4 +153,4 @@ Honorable mention goes to Julia Silge, who taught me more about PCA in 20 minute
 
 There are a couple of repos collecting all the talks, [here](https://github.com/rstudio/rstudio-conf/tree/master/2018) and [here](https://github.com/simecek/RStudioConf2018Slides).
 
-Overall, this was such an amazing conference. I had so much fun meeting and seeing friends from R-Ladies and Twitter; it truly felt like I had so many friends around me. Until next year in Austin!
+Overall, this was such an amazing conference. I had so much fun meeting and seeing friends from R-Ladies and Twitter; it truly felt like I had friends all around me, hard to accomplish with 1000 strangers abound.. Until next year in Austin!
