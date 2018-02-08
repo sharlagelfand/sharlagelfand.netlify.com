@@ -1,5 +1,5 @@
 ---
-title: RStudio Conf 2018 I didnt lose my wallet or my keys
+title: "RStudio Conf 2018: I didn't lose my wallet or my keys"
 author: ''
 date: '2018-02-07'
 slug: rstudio-conf-2018
@@ -154,5 +154,3 @@ Honorable mention goes to Julia Silge, who taught me more about PCA in 20 minute
 There are a couple of repos collecting all the talks, [here](https://github.com/rstudio/rstudio-conf/tree/master/2018) and [here](https://github.com/simecek/RStudioConf2018Slides).
 
 Overall, this was such an amazing conference. I had so much fun meeting and seeing friends from R-Ladies and Twitter; it truly felt like I had so many friends around me. Until next year in Austin!
-
-`r emo::ji("cowboy")`
