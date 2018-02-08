@@ -22,7 +22,7 @@ I thought it would be interesting to compare the weather in the three cities I'v
 
 Of course, moving around has a lot more to do with the weather. But this is just fun.
 
-I'm using the rOpenSci [`riem` package](https://github.com/ropensci/riem) that [Maelle Salmon](http://www.masalmon.eu/) created (psst -- did you know that Maelle is looking for a remote data scientist/software engineer job? She is one of the smartest, most helpful people I've ever encountered. Her blog is incredible, she has a great way of approaching problems, she makes awesome R packages, and she is such a delight. Are you hiring? Hire Maelle.).
+I'm using the rOpenSci [`riem` package](https://github.com/ropensci/riem) that [Maëlle Salmon](http://www.masalmon.eu/) created (psst -- did you know that Maëlle is looking for a remote data scientist/software engineer job? She is one of the smartest, most helpful people I've ever encountered. Her blog is incredible, she has a great way of approaching problems, she makes awesome R packages, and she is such a delight. Are you hiring? Hire Maëlle.).
 
 This package gets weather data from airports. Luckily, everywhere I've lived has an airport so this data set is good for me!
 
