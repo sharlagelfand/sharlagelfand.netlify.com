@@ -1,0 +1,119 @@
+---
+title: RStudio Conf 2018 I didnt lose my wallet or my keys
+author: ''
+date: '2018-02-07'
+slug: rstudio-conf-2018
+---
+
+
+
+<p>RStudio Conf 2018 is is done and gone, but I wanted to write down some thoughts before they are forgotten! The conference is packed into an incredible 2 days (4 if you workshopped before) – I attended two keynotes, two fireside chats, and 20 (!) talks. These 20 talks were just a third (!!) of the talks that happened. I asked one question, and got very distracted by hearing the sound of my own voice come from the PA midway through.</p>
+<p>If you follow me on twitter (how else would you find this blog?), you might know that I was also very active on the <a href="https://twitter.com/hashtag/rstudioconf?f=tweets&amp;vertical=default">#rstudioconf hashtag</a>.</p>
+<p>But “very active” isn’t a number, and given all the talk about crucial data science skills (like <a href="https://twitter.com/sharlagelfand/status/959952674463539200">counting and division</a>) over the last few days, I wanted some numbers. I’m using Mike Kearney’s fantastic <a href="http://rtweet.info/"><code>rtweet</code> package</a> (as always!) to pull my own tweets over the last few days (the Thursday to Sunday, aka when I flew in and out of San Diego ✈️).</p>
+<pre class="r"><code>library(rtweet)
+library(dplyr)
+library(lubridate)
+
+my_tweets &lt;- get_timeline(user = &quot;sharlagelfand&quot;, n = 400) %&gt;%
+  mutate(created_at = with_tz(created_at, tz = &quot;America/Los_Angeles&quot;))
+
+my_tweets_conf &lt;- my_tweets %&gt;%
+  filter(created_at &gt;= &quot;2018-02-02&quot; &amp; created_at &lt;= &quot;2018-02-05&quot;)
+
+my_tweets_rt &lt;- my_tweets_conf %&gt;% 
+  group_by(is_retweet) %&gt;% 
+  count()
+
+my_tweets_rt</code></pre>
+<pre><code>## # A tibble: 2 x 2
+## # Groups: is_retweet [2]
+##   is_retweet     n
+##   &lt;lgl&gt;      &lt;int&gt;
+## 1 F             91
+## 2 T             37</code></pre>
+<p>If we look at these, we can see that I tweeted a total of 128 times – 91 original tweets, and 37 retweets. For these original tweets, I got 672 likes (!!!) and 92 retweets. I take no credit for the response, of course – I’d rather think about this as people engaging with the <em>speakers’ content</em>, rather than with me; the work that went into all those incredible talks was a lot more than the work that went into the tweets 💁</p>
+<p>I don’t want to go into a full blown analysis of the tweets, because 1) it’s not what’s important here, and 2) I am extremely tired.</p>
+<p>Instead, I wanted to give an overview of a few of my favourite talks, and some general themes that I took away from the conf. I did miss a <em>lot</em> of talks (by design – Hadley himself said their goal was to make deciding between talks as difficult as possible; I ended up missing his, so… mission accomplished), and am looking forward to watching the recordings once they’re available and reading other recaps!</p>
+<p>You will quickly be able to tell that I opted for most of the process/industry talks (<code>case-study-n</code>) so there is not a lot of code or tips n tricks here – I didn’t attend anything in the shiny, packages, or programming tracks, so… again, looking forward to other recaps 😋</p>
+<p>I’m linking to slides when I can find them, but will update as I find more!</p>
+<div id="davis-vaughn-the-future-of-time-series-and-financial-analysis-in-the-tidyverse" class="section level3">
+<h3>Davis Vaughn: The future of time series and financial analysis in the tidyverse</h3>
+<p><a href="https://twitter.com/dvaughan32">Davis</a> talked about the <a href="https://github.com/business-science/tibbletime"><code>tibbletime</code> package</a>, which is “an extension that allows for the creation of time aware tibbles through the setting of a time index.” Slides are <a href="https://business-science.github.io/presentations/2018_02_02_rstudio-conf-2018/presentation/rstudio-conf-2018-presentation/assets/player/KeynoteDHTMLPlayer.html#0">here</a>.</p>
+<p>As someone who works with a lot of time data, I was so thrilled watching this talk. It is the package I didn’t even realize I needed – I had settled with some of the friction of working with time data (<code>lubridate</code> and Edwin Thoen’s <a href="https://cran.r-project.org/web/packages/padr/vignettes/padr.html"><code>padr</code> package</a> have helped <em>so much</em>) and figured that was that. The <code>tibbletime</code> package is literally just so smart.</p>
+<p>I’m particularly excited by easier time-based subsetting (e.g. filtering the data to be between two dates/times) through use of the <a href="https://business-science.github.io/tibbletime/reference/filter_time.html"><code>filter_time()</code> function</a>.</p>
+<p>Once you set the time index of the tibble (via <code>df2 &lt;- as_tbl_time(df, index = date)</code>), you can easily subset by doing <code>df2 %&gt;% filter_time(from ~ to)</code>, as opposed to the traditional <code>df %&gt;% filter(date &gt;= from &amp; date &lt;= y)</code>.</p>
+<p>It’s smart enough to take years, months, days, seconds, and combinations of into the <code>from</code> and <code>to</code> arguments. It may seem like a little thing, but I can already see how this mental model will remove so much friction in my day to day.</p>
+<p>For example, instead of the code above I could do</p>
+<pre class="r"><code>library(tibbletime)
+
+my_tweets_conf_tibbletime &lt;- my_tweets %&gt;%
+  as_tbl_time(index = created_at) %&gt;%
+  arrange(created_at) %&gt;% 
+  filter_time(&quot;2018-02-02&quot; ~ &quot;2018-02-04&quot;)
+
+nrow(my_tweets_conf_tibbletime) == nrow(my_tweets_conf)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<p>and get the exact same data, using interval notation.</p>
+<p>You might notice that I had <code>2018-02-05</code> as the end date in the <code>dplyr</code> only version of the code, but used <code>2018-02-04</code> in the <code>tibbletime</code> version – <code>tibbletime</code> goes to the <em>end</em> of the day, whereas <code>dplyr</code> would treat <code>2018-02-04</code> as <code>2018-02-04 00:00:00</code>, so any records <em>on</em> that date wouldn’t be included – and I wanted them! It’s fine that dplyr does this, of course, and just something you have to remember – after all, it is comparing date times literally. But I do often forget, so this “end of the day” business is great for me!</p>
+<p>There’s also the ability to roll up dates to a different interval (e.g., roll up every record in a day to that date) via <code>collapse_by()</code>, which could be used for grouping by that interval to summarise that data. This is where the biggest overlap between <code>tibbletime</code> and <code>padr</code> is (the <code>padr::thicken()</code> function is similar) – there was some discussion between Davis, Edwin, and I on this on <a href="https://twitter.com/sharlagelfand/status/959554600532508672">twitter</a> if you’re curious.</p>
+<p>There is a ton more functionality that I won’t cover – all in all, I am so excited to put this package to use, and so grateful for the work that Davis + Business Science, and Edwin have done to make time series data easier to work with.</p>
+</div>
+<div id="jd-long-the-unreasonable-effectiveness-of-empathy" class="section level3">
+<h3>JD Long: The unreasonable effectiveness of empathy</h3>
+<p><a href="https://twitter.com/CMastication">JD</a>’s slides aren’t available yet since it looks like he’s on vacation somewhere fun, so I’m going off memory – but his talk centred around empathy and its power when creating data products. I sometimes find it difficult (and I doubt I’m alone!) to get all the context and information I need when doing an analysis. Turns out that a great way to get that context and empathy is by borrowing from agile, and using user stories! These take the form “As an X, I want to Y, so I can Z.”</p>
+<p>For example,</p>
+<blockquote>
+<p>As an artist, I want to be able to save pictures on Instagram, so I can use them later for inspiration.</p>
+</blockquote>
+<p>This is a <em>lot</em> different than just saying “let me download pictures” – screenshots already exist, right? I have 0 affiliation with instagram (though I am an admirer of <a href="https://www.instagram.com/p/Beq3UxJlLUj/?taken-by=rstudio_inc">RStudio’s</a>) but quite like how they added in the Saved features with different collections so different pictures can go in different places.</p>
+<p>Doing this helps to put you in the end user’s shoes – you understand who they are, what they want to do, and <em>why</em> they want to do it; what impact it’ll have, how it’ll help them. This is often 💯 times more useful than someone telling you <em>what</em> they want – maybe they don’t know exactly, but I think (and probably JD too!) most importantly it helps you to empathize, fully understand their goals, and create products accordingly.</p>
+<p>JD’s theme overall was that thinking about <em>who</em> is on the receiving end of your work is really important, and to be specific – as he put it, “when you design for everyone, you design for no one.”</p>
+</div>
+<div id="elaine-mcvey-agile-data-science" class="section level3">
+<h3>Elaine McVey: Agile data science</h3>
+<p><a href="https://twitter.com/eamcvey">Elaine</a> of TransLoc, a talked about common pains that come with doing data science in a company and how to draw from agile to help. The issues are:</p>
+<ul>
+<li>Marginality: people think (or it’s true) that the data work being done is not the core work of the company.</li>
+<li>Mystery: people don’t know what data science is, or what data scientists do</li>
+<li>Misalignment: data science groups are often poorly placed (in the wrong department, as support teams, or without influence)</li>
+</ul>
+<p>For marginality, she proposes <strong>user stories</strong> (familiar from above!). The goal of this is to develop a shared understand and ensure that the work data scientists are doing <em>is</em> related to the core work of the company.</p>
+<p>For mystery, she suggests <strong>vertical slicing</strong> – get to the smallest possible end result as quickly as possible, and check back in. Instead of running 10,000 simulations, run two, and present the results. See the reaction and get a better understanding of the <em>value</em> of the work, and a holistic understanding of what projects are valuable and what aren’t.</p>
+<p>Finally, for misalignment she touches on <strong>stakeholder reviews</strong> to discuss competing priorities. All stakeholders should review vertical slices and see what’s coming up. This ensures that all stakeholders understand what data scientists do and the impact of their work, and forces (my words, not hers) them to prioritize <em>amongst each other</em> for data science resources. You ever try to be the one doing the data science <em>and</em> the one prioritizing it? Yeah 🙃</p>
+<p>I have definitely experienced all three pains doing data within a company, and look forward to figuring out how to apply these approaches to my own work!</p>
+<p>Elaine has a blog where she outlines the <a href="http://www.datawoman.com/2018/02/the-pain-of-data-science-in-organizations/">pains</a> and the <a href="http://www.datawoman.com/2018/02/using-agile-to-change-the-data-science-conversation/">solutions</a>.</p>
+</div>
+<div id="emily-riederer-tidycf-turning-analysis-on-its-head-by-turning-cashflows-on-their-sides" class="section level3">
+<h3>Emily Riederer: tidycf: turning analysis on its head by turning cashflows on their sides</h3>
+<p><a href="%5Bhttps://twitter.com/EmilyRiederer">Emily</a> started off her <a href="https://www.slideshare.net/tanyacash/rapid-prototyping-data-products-in-shiny-rstudioconf-2018">talk</a> by outlining how important cashflow analysis is to Capital One’s business analytics – and yet, so much has been done in different tools (spreadsheets, powerpoint, word processor, databases, BI tools, etc) with poor documentation and reproducibility.</p>
+<p>Turns out that these complicated analyses actually follow a familiar analytical model that many of us are used to (import –&gt; tidy –&gt; explore –&gt; commmunicate, you know the one), and that “special” business analyses aren’t as special as we think – a lot can be borrowed from tidy data + reproducibility principles! Based on this, her team built the internal <code>tidycf</code> R package.</p>
+<p>Something that I loved was that Emily focused so much of her talk around the process of building this package and integrating it into peoples’ workflows. They focused on <strong>empathy</strong> (designed to meet users’ needs – there it is again!), <strong>empowerment</strong> (designed to teach and facilitate), and <strong>engagement</strong> (designed for extension with invitation to contribute).</p>
+<p>Her team also used RMarkdown templates as a way to teach the R code and enable knowledge-transfer on the domain (a theme I saw discussed in a few other talks), with additional focus on opinionated project templates and directories. A big theme here was around setting her colleagues up for success with using R, while emphasizing reproducibility.</p>
+</div>
+<div id="sandy-griffith-accelerating-cancer-research-with-r" class="section level3">
+<h3>Sandy Griffith: Accelerating cancer research with R</h3>
+<p><a href="http://www.sandradgriffith.com/">Sandy</a>, of Flatiron Health, talked about choosing R over SAS for her team (a theme echoed in another talk, by Beth Atkinson of Mayo Clinic) and the steps that went into that choice, then cultivating and sustaining a strong R team. Cultivating started with a lot of support – an internal R package, user group, Slack channels, training, and hiring. She then focused on sustaining – once everyone is proficient, there’s a need to focus on consistency and contribution, via growing internal packages, and focusing on reproducibility, quality control (I swooned at the mention of unit tests!), and standardization.</p>
+<p>She acknowledged that there are challenges now – devoting time to infra, internal package management, and coordinating R usage outside of the Quantitative Sciences team among them, all areas of potential improvement for a company that is quite mature in R.</p>
+<p>Sandy is biking through the desert post conf, but I will link her slides (and add more detail on the talk if they jog my memory – I can tell I’m forgetting a lot) once/if they’re available!</p>
+</div>
+<div id="tanya-cashorali-rapid-prototyping-data-products-using-shiny" class="section level3">
+<h3>Tanya Cashorali: Rapid prototyping data products using Shiny</h3>
+<p><a href="https://twitter.com/tanyacash21">Tanya</a> has her own consulting business, <a href="http://tcbanalytics.com/">TCB Analytics</a>, and her <a href="https://www.slideshare.net/tanyacash/rapid-prototyping-data-products-in-shiny-rstudioconf-2018">talk</a> was about getting shit done, fast, in Shiny (my preferred title; not the real one). She had concrete examples of case studies, and how she worked towards quick solutions, but my favourite parts of the talk was all her advice along the way – on imposter syndrome and on getting shit done (she pulled a lot from <a href="https://lifehacker.com/5864004/the-done-manifesto-lays-out-13-ground-rules-for-getting-to-done">the Done manifesto</a> – that site will ask you to whitelist it, I’m sorry, you don’t have to and it still works).</p>
+<p>I loved that Tanya pointed out that 1) if you don’t have any imposter syndrome, you probably <a href="https://thequickword.files.wordpress.com/2014/08/imposter.jpg">know less than you think you do</a> and 2) that not doing anything is pretty much the worst thing you can do. You don’t have to do things perfectly – get shit done, and iterate later.</p>
+<p>This was all really helpful to me – I definitely struggle with imposter syndrome and trying to make things perfect (which always slows me down), and I quite like shiny… so… 👍🏿</p>
+</div>
+<div id="kayla-patel-imagine-boston-2030-using-r-shiny-to-keep-ourselves-accountable-and-empower-the-public" class="section level3">
+<h3>Kayla Patel: Imagine boston 2030: using r-shiny to keep ourselves accountable and empower the public</h3>
+<p><a href="https://twitter.com/paylakatel">Kayla</a> works for the city of Boston and <a href="https://docs.google.com/presentation/d/1T5I5cnK1uBmAxZ-ZIHELJdv1grDRwERmjVu57EN99Jw/edit#slide=id.g32a746c7be_0_65">talked</a> about a Shiny dashboard she developed for <a href="https://imagine.boston.gov/">Imagine Boston 2030</a>, a long-term plan that emphasized public input and data to develop 5 major goals for the city, each with their own set of metrics. The dashboard allows users to see the current state for each metric, historical trends, progress, and the city’s plans for each goal.</p>
+<p>I loved so many things about this talk – primarily the fact that her team thought <em>so much</em> about how to visualize and communicate data. The IB2030 plan had so much contribution from the public and the goal of the dashbard is to communicate the past and current states of each metric, along with how the city plans to improve them; it doesn’t make any sense to have data visualizations that are unclear and inacessible, and they did a ton of work to ensure that wasn’t the case.</p>
+<p>Of course, it was awesome to see how open source tools (tidyverse, shinydashboard, plotly, and leaflet among them) contributed to this work, and the iterations involved in making the code cleaner and easier to read (TODO: learn shiny modules).</p>
+<p>I also learned that the city of Boston has a pretty cool <a href="https://data.boston.gov/">open data</a> portal and initiative!</p>
+<p>You can read more about the dashboard <a href="https://imagine.boston.gov/metrics-dashboard/">here</a>, and see it <a href="https://analytics.boston.gov/app/imagine-boston">here</a>.</p>
+</div>
+<div id="wrapup" class="section level3">
+<h3>Wrapup</h3>
+<p>Honorable mention goes to Julia Silge, who taught me more about PCA in 20 minutes than two degrees and 6 years of statistics education did (no offence) – my feelings are summarised by that much. You can see her slides <a href="https://speakerdeck.com/juliasilge/understanding-principal-component-analysis-using-stack-overflow-data">here</a>.</p>
+<p>There are a couple of repos collecting all the talks, <a href="https://github.com/rstudio/rstudio-conf/tree/master/2018">here</a> and <a href="https://github.com/simecek/RStudioConf2018Slides">here</a>.</p>
+<p>Overall, this was such an amazing conference. I had so much fun meeting and seeing friends from R-Ladies and Twitter; it truly felt like I had so many friends around me. Until next year in Austin!</p>
+<p>🤠</p>
+</div>
