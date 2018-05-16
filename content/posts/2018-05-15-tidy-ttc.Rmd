@@ -1,0 +1,279 @@
+---
+title: "Tidying the TTC"
+author: 'Sharla Gelfand'
+date: '2018-05-15'
+slug: tidy-ttc
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(message=FALSE, fig.width = 8, fig.height = 6)
+
+library(emo)
+```
+
+Hello and welcome to another episode of tidy that data!
+
+I enjoyed my [last data tidying post](https://sharlagelfand.netlify.com/posts/tidying-toronto-open-data/) so much and I've tweeted [a couple](https://twitter.com/sharlagelfand/status/970796082769866752) of [times](https://twitter.com/sharlagelfand/status/981266217901182976) about the immense satisfaction I get from tidying data sets -- so this is long overdue.
+
+I'm returning to the City of Toronto Open Data catalogue (FYI -- they just launched their
+new [open data portal](https://portal0.cf.opendata.inter.sandbox-toronto.ca/), which includes a data blog, better catalogue navigation, a developer API, in-portal data exploration, and more! congratulations to the team `r emo::ji("tada")`), this time looking at Toronto Transit Commission (TTC), aka public transit, data. 
+
+This specific data set is called ["TTC Ridership Analysis"](https://portal0.cf.opendata.inter.sandbox-toronto.ca/dataset/ttc-ridership-analysis/).  As the source says, the "TTC Ridership Analysis data set measures the first point of payment when boarding at the start of a journey using the TTC. Data includes ticket types as well as the type of vehicle." Since it is an analysis data set, some aggregation and analysis has already been done to get it in its current format.
+
+Unfortunately, this is not the format I want `r emo::ji("smiling_imp")`
+
+![](/images/tidying-ttc/raw-data.png)
+
+This data set actually contains three-in-one -- who, where, and when. 
+
+Within the "who" data set, there are main headings (adult, senior/student, children) and subheadings (tokens, tickets, monthly pass, etc) as well as a additional section that doesn't contain a main heading at all (day/vist./other, blind/war amps, gta pass, etc). These headings are all in the same column. There are sub-totals for each "who" section and a "system total" at the end. The "where" and "when" sections follow a similar pattern, with main and sub-headings and totals. 
+
+There is also some preamble and "postamble" discussing the data set. Because of the preamble, I expect that we won't get nice column headings when importing the data set.
+
+That's okay, this is what R was made for `r emo::ji("muscle")`
+
+([this too](https://sharlagelfand.shinyapps.io/ryeshadow/))
+
+Let's load the data in.
+
+```{r load}
+library(readxl)
+library(knitr)
+
+ttc <- read_excel("data/tidying-ttc/1985-2017 Analysis of ridership.xlsx")
+```
+
+```{r echo = FALSE}
+kable(head(ttc[,1:10], n = 10))
+```
+
+As expected, the first few rows are the preamble, and the first column gives the who/where/when specification. The second column of data includes both the main headings (adult) as well as sub headings (tokens, tickets, etc). All of the columns are characters, and the missing values ("N/A") read in as strings instead of missing values.
+
+We'll get started by replacing those "N/A" strings with literal NA (missing values), and converting everything to lowercase so it doesn't feel like the data set is yelling at us `r emo::ji("megaphone")`. For the NA replacement, I'm using Nicholas Tierney's [`naniar`  package](https://github.com/njtierney/naniar), designed to deal with missing data. [This vignette](https://cran.r-project.org/web/packages/naniar/vignettes/replace-with-na.html) specifically is a great walk through of how to replace values with NA.
+
+```{r replace_na}
+library(dplyr)
+library(naniar)
+
+ttc <- ttc %>%
+  replace_with_na_all(condition = ~.x == "N/A") %>%
+  mutate_all(.funs = tolower)
+```
+
+```{r echo = FALSE}
+kable(head(ttc[,1:10], n = 10))
+```
+
+Next, I'm going to remove those first few rows of description and any row that describes a total (it's just aggregating the other rows).
+I'm also cleaning up the column names using Sam Firke's [`janitor` package](https://github.com/sfirke/janitor), since it feels like they're yelling too.
+
+```{r remove_preamble_and_total}
+library(stringr)
+library(janitor)
+
+ttc <- ttc[-c(1:3),] %>%
+  clean_names() %>%
+  filter(!str_detect(x_1, "total")) %>%
+  mutate(id = row_number())
+```
+
+```{r echo = FALSE}
+kable(head((ttc %>% select(id, everything()))[,1:10]))
+```
+
+At this point, I've also added in an `id` column that's just the row number. I'll use this to figure out how to cutoff and split the various who/where/when data sets. To do this, I'm getting the `id` (i.e., row) where the "who", "where", and "when" sections start by seeing, for example, where `toronto_transit_commission == "who"`.
+
+```{r dataset_start}
+who_start <- ttc %>%
+  filter(toronto_transit_commission == "who") %>%
+  pull(id)
+
+where_start <- ttc %>%
+  filter(toronto_transit_commission == "where") %>%
+  pull(id)
+
+when_start <- ttc %>%
+  filter(toronto_transit_commission == "when") %>%
+  pull(id)
+```
+
+From this, we can see that row `r who_start` is where the "who" data set begins, and rows `r where_start` and `r when_start` for the "where" and "when" data sets, respectively. 
+
+```{r who}
+ttc_who <- ttc[who_start:(where_start - 1), -1]
+```
+
+```{r echo = FALSE}
+kable(head(ttc_who[,1:10]))
+```
+
+Since this contains a few different sections (adult, senior/student, etc), I'm repeating a similar process to understand where each of those sections starts. If you know of a more clever way to do this, let me know!
+
+```{r who_section_starts}
+ttc_who <- ttc_who %>%
+  mutate(id = row_number())
+
+adult_start <- ttc_who %>%
+  filter(x_1 == "adult") %>%
+  pull(id)
+
+senior_student_start <- ttc_who %>%
+  filter(x_1 == "senior/student") %>%
+  pull(id)
+
+children_start <- ttc_who %>%
+  filter(x_1 == "children") %>%
+  pull(id)
+
+remaining_start <- ttc_who %>%
+  filter(x_1 == "day/vist./other") %>%
+  pull(id)
+```
+
+I've recomputed the `id` field so that it uses the new row numbers from `ttc_who`, and not from the original `ttc` sedate. Again, we can see that the adult, senior/student, children, and remaining sections start at rows `r adult_start`, `r senior_student_start`, `r children_start`, and `r remaining_start`. Now let's split them into individual data sets, adding a "who" column that describes the main heading so that data's not lost.
+
+```{r who_sections}  
+adult <- ttc_who[(adult_start + 1):(senior_student_start - 1), ] %>%
+  mutate(who = "adult")
+
+senior_student <- ttc_who[(senior_student_start + 1):(children_start - 1), ] %>%
+  mutate(who = "senior/student")
+
+children <- ttc_who[(children_start + 1):(remaining_start - 1), ] %>%
+  mutate(who = "children")
+```
+
+```{r echo = FALSE}
+kable(head((adult %>% 
+              select(who, everything()))[, 1:10]))
+```
+
+Starting to look a lot better! The "remaining" section is a bit of an anomaly in that its first column actually describes the "who" and not the fare type, so it needs some additional massaging. I'm doing this weird renaming and rearranging so that we can easily stick this together with the other sections.
+
+```{r who_remaining}
+remaining <- ttc_who[-c(1:(remaining_start -1)), ] %>%
+  mutate(who = x_1,
+         x_1 = NA)
+```
+
+```{r echo = FALSE}
+kable(head((remaining %>% 
+              select(who, everything()))[, 1:10]))
+```
+
+Now, we can put the "who" back together and start rearranging, first by giving appropriate names to the columns.
+
+```{r who_together}
+the_who <- adult %>%
+  bind_rows(senior_student) %>%
+  bind_rows(children) %>%
+  bind_rows(remaining) %>%
+  select(who, everything(), -id)
+
+colnames(the_who) <- c("who", "fare_type", 2017:1985)
+```
+
+```{r echo = FALSE}
+kable(head((the_who[, 1:10])))
+```
+
+We're getting close `r emo::ji("pray")`. This data is in a good place, but it's in a wide format -- each year's data is in a different column. This will make it difficult to, for example, plot rides paid with tokens by year. The last step is to convert the data to a long format, so that we have one row for every observation (i.e., one row for every who/fare_type/year combination).
+
+```{r who_long}
+library(tidyr)
+
+the_who <- the_who %>%
+  gather(key = year, value = n, -who, -fare_type) %>%
+  mutate(year = as.numeric(year),
+         n = as.numeric(n)) %>%
+  select(year, who, fare_type, n)
+```
+
+```{r echo = FALSE}
+kable(head(the_who))
+```
+
+Now we're done with the "who"! The "where" and "when" follow very similar patterns, so I'll go through them quickly.
+
+```{r where}
+ttc_where <- ttc[(where_start + 1):(when_start - 1), -1] %>%
+  filter(x_1 != "rail") %>%
+  mutate(where = if_else(x_1 == "bus", "bus", "rail")) %>%
+  select(where, x_1, everything())
+
+colnames(ttc_where) <- c("where", "method", 2017:1985)
+
+ttc_where <- ttc_where %>%
+  gather(key = year, value = n, -where, -method) %>%
+  mutate(year = as.numeric(year),
+         n = as.numeric(n)) %>%
+  select(year, where, method, n)
+```
+
+```{r echo = FALSE}
+kable(head(ttc_where))
+```
+
+```{r when}
+ttc_when <- ttc[when_start:nrow(ttc), -1] %>%
+  select(-id)
+
+colnames(ttc_when) = c("when", 2017:1985)
+
+ttc_when <- ttc_when %>%
+  gather(key = year, value = n, -when) %>%
+  mutate(year = as.numeric(year),
+         n = as.numeric(n)) %>%
+  select(year, when, n)
+```
+
+```{r echo = FALSE}
+kable(head(ttc_when))
+```
+
+Now that we have all three datasets in a tidy, analyzable format, we can explore.
+
+Let's start by looking at TTC trips over time, just for adults.
+
+```{r who_plot}
+library(plotly)
+
+the_who %>%
+  filter(who == "adult") %>%
+  group_by(year) %>%
+  summarise(trips = sum(n/1000, na.rm = TRUE)) %>%
+  plot_ly(x = ~year, y = ~trips) %>%
+  add_lines() %>%
+  layout(title = "Annual adult TTC trips", 
+         yaxis = list(title = "TTC trips (millions)", 
+                      rangemode = "tozero"))
+```
+
+We can see immediately that there is a huge drop in adult TTC trips in 1990, dropping
+from a high of 367 million annual trips to 280 million in 1995. It wasn't until 2007 that the adult trips reached what they'd been in 1990. I'm not from Toronto, so I did some digging.
+
+I found the TTC's [1991 annual report](https://www.ttc.ca/Coupler/Annual_Reports/1991%20Annual%20Report.pdf) which explained that the decline was due to the recession at the time. This may seem obvious if you were around and cognizant then, but I was, ahem, born during this decline. Former premier Mike Harris was also elected in '95 and [cut provincial funding to the TTC](https://www.blogto.com/city/2016/04/the_year_it_all_went_down_the_tubes_for_the_ttc/). The increase in ridership during the late 90s seems mostly due to the controversial formation of the "Megacity", the [amalgamation](https://www.thestar.com/news/gta/2017/01/01/19-years-ago-torontos-six-boroughs-amalgamated.html) of six former municipalities into one "City of Toronto".
+
+We can also look at what percentage of TTC trips *start* on the bus, subway, etc. The dataset measures the first point of payment, so we don't actually see, for example, how many trips were on the bus since you can make a [direct transfer](https://www.tripsavvy.com/the-ttc-transfer-system-3251052) a streetcar or subway to the bus.
+
+```{r where_p, warnings=FALSE}
+ttc_where %>%
+  group_by(year) %>%
+  mutate(prop = n/sum(n)) %>%
+  ungroup() %>%
+  plot_ly(x = ~year, y = ~prop) %>%
+  add_lines(color = ~method) %>%
+  layout(title = "Percent of trips started by transit type", 
+         yaxis = list(title = "", tickformat = ".1%"),
+         legend = list(orientation = "h"))
+```
+
+The [S.R.T](https://en.wikipedia.org/wiki/Line_3_Scarborough) is an extension of the subway line in the east (in Scarborough) -- it is a light metro system, and not counted in with the rest of the subway. This line is quite short (6 instead of the 69 stations on the main subway) and contains the [least used station](https://en.wikipedia.org/wiki/Ellesmere_station), which has no direct bus connection.
+
+I'd be especially interested to see how this data changes for 2018 -- in late 2017 we saw the [subway extension](https://en.wikipedia.org/wiki/Line_1_Yonge%E2%80%93University#Toronto%E2%80%93York_Spadina_Subway_Extension) of Line 1 into Vaughan, with 6 new stations including a stop at [York Univesity](https://www.thestar.com/opinion/star-columnists/2017/12/19/torontos-new-subway-extension-is-beautiful-but-its-not-the-line-we-shouldve-built.html), which is expected to carry 27,000 passengers a day by 2020 -- previously, the primary route to the university was an express bus. The city is also experimenting with the [King Street Pilot](https://www.toronto.ca/city-government/planning-development/planning-studies-initiatives/king-street-pilot/), intended to make travelling by streetcar less painful (i.e., less stuck in traffic with cars). 
+
+There's a lot more exploration that can be done with this data; this is not intended to be exhaustive, or to shed new light on the operations of the TTC or the history of Toronto. I did learn a fair bit about both in the process (including that the TTC had [trolley coaches](https://transit.toronto.on.ca/trolleybus/9005.shtml) from 1922 until 1993!) but this is perhaps an indication that I have a lot to learn about my new city and the transit that serves it!
+
+This is also not intended to [roast](https://en.wikipedia.org/wiki/Roast_(comedy)) the way this data set has been put together by the TTC -- the original data set is in a tabular format that is verbose, quite detailed, and intended for _human_ reading. It is a great overview and analysis of the TTC over the last 32 years. My goal is to demonstrate how we can take that tabular data, and though it looks daunting, transform it into a machine readable format to allow for additional exploration. 
+
+`r emo::ji("wave")`

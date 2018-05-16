@@ -1,0 +1,1022 @@
+---
+title: "Tidying the TTC"
+author: 'Sharla Gelfand'
+date: '2018-05-15'
+slug: tidy-ttc
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/plotly-binding/plotly.js"></script>
+<script src="/rmarkdown-libs/typedarray/typedarray.min.js"></script>
+<script src="/rmarkdown-libs/jquery/jquery.min.js"></script>
+<link href="/rmarkdown-libs/crosstalk/css/crosstalk.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/crosstalk/js/crosstalk.min.js"></script>
+<link href="/rmarkdown-libs/plotlyjs/plotly-htmlwidgets.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/plotlyjs/plotly-latest.min.js"></script>
+
+
+<p>Hello and welcome to another episode of tidy that data!</p>
+<p>I enjoyed my <a href="https://sharlagelfand.netlify.com/posts/tidying-toronto-open-data/">last data tidying post</a> so much and I’ve tweeted <a href="https://twitter.com/sharlagelfand/status/970796082769866752">a couple</a> of <a href="https://twitter.com/sharlagelfand/status/981266217901182976">times</a> about the immense satisfaction I get from tidying data sets – so this is long overdue.</p>
+<p>I’m returning to the City of Toronto Open Data catalogue (FYI – they just launched their new <a href="https://portal0.cf.opendata.inter.sandbox-toronto.ca/">open data portal</a>, which includes a data blog, better catalogue navigation, a developer API, in-portal data exploration, and more! congratulations to the team 🎉), this time looking at Toronto Transit Commission (TTC), aka public transit, data.</p>
+<p>This specific data set is called <a href="https://portal0.cf.opendata.inter.sandbox-toronto.ca/dataset/ttc-ridership-analysis/">“TTC Ridership Analysis”</a>. As the source says, the “TTC Ridership Analysis data set measures the first point of payment when boarding at the start of a journey using the TTC. Data includes ticket types as well as the type of vehicle.” Since it is an analysis data set, some aggregation and analysis has already been done to get it in its current format.</p>
+<p>Unfortunately, this is not the format I want 😈</p>
+<div class="figure">
+<img src="/images/tidying-ttc/raw-data.png" />
+
+</div>
+<p>This data set actually contains three-in-one – who, where, and when.</p>
+<p>Within the “who” data set, there are main headings (adult, senior/student, children) and subheadings (tokens, tickets, monthly pass, etc) as well as a additional section that doesn’t contain a main heading at all (day/vist./other, blind/war amps, gta pass, etc). These headings are all in the same column. There are sub-totals for each “who” section and a “system total” at the end. The “where” and “when” sections follow a similar pattern, with main and sub-headings and totals.</p>
+<p>There is also some preamble and “postamble” discussing the data set. Because of the preamble, I expect that we won’t get nice column headings when importing the data set.</p>
+<p>That’s okay, this is what R was made for 💪</p>
+<p>(<a href="https://sharlagelfand.shinyapps.io/ryeshadow/">this too</a>)</p>
+<p>Let’s load the data in.</p>
+<pre class="r"><code>library(readxl)
+library(knitr)
+
+ttc &lt;- read_excel(&quot;data/tidying-ttc/1985-2017 Analysis of ridership.xlsx&quot;)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">TORONTO TRANSIT COMMISSION</th>
+<th align="left">X__1</th>
+<th align="left">X__2</th>
+<th align="left">X__3</th>
+<th align="left">X__4</th>
+<th align="left">X__5</th>
+<th align="left">X__6</th>
+<th align="left">X__7</th>
+<th align="left">X__8</th>
+<th align="left">X__9</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">ANALYSIS OF RIDERSHIP</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">1985 TO 2017 ACTUALS (000’S)</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">FARE MEDIA</td>
+<td align="left">2017</td>
+<td align="left">2016</td>
+<td align="left">2015 *</td>
+<td align="left">2014</td>
+<td align="left">2013</td>
+<td align="left">2012</td>
+<td align="left">2011</td>
+<td align="left">2010</td>
+</tr>
+<tr class="odd">
+<td align="left">WHO</td>
+<td align="left">ADULT</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">TOKENS</td>
+<td align="left">76106</td>
+<td align="left">102073</td>
+<td align="left">110945</td>
+<td align="left">111157</td>
+<td align="left">112360</td>
+<td align="left">117962</td>
+<td align="left">124748</td>
+<td align="left">120366</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">TICKETS</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">1298</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">TWO-FARE</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">PRESTO - SINGLE RIDE</td>
+<td align="left">67829</td>
+<td align="left">27397</td>
+<td align="left">13323</td>
+<td align="left">9862</td>
+<td align="left">8194</td>
+<td align="left">4399</td>
+<td align="left">1139</td>
+<td align="left">0</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">PRESTO - SRVM TOKEN RIDE</td>
+<td align="left">1271</td>
+<td align="left">1157</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+<td align="left">N/A</td>
+</tr>
+</tbody>
+</table>
+<p>As expected, the first few rows are the preamble, and the first column gives the who/where/when specification. The second column of data includes both the main headings (adult) as well as sub headings (tokens, tickets, etc). All of the columns are characters, and the missing values (“N/A”) read in as strings instead of missing values.</p>
+<p>We’ll get started by replacing those “N/A” strings with literal NA (missing values), and converting everything to lowercase so it doesn’t feel like the data set is yelling at us 📣. For the NA replacement, I’m using Nicholas Tierney’s <a href="https://github.com/njtierney/naniar"><code>naniar</code> package</a>, designed to deal with missing data. <a href="https://cran.r-project.org/web/packages/naniar/vignettes/replace-with-na.html">This vignette</a> specifically is a great walk through of how to replace values with NA.</p>
+<pre class="r"><code>library(dplyr)
+library(naniar)
+
+ttc &lt;- ttc %&gt;%
+  replace_with_na_all(condition = ~.x == &quot;N/A&quot;) %&gt;%
+  mutate_all(.funs = tolower)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">TORONTO TRANSIT COMMISSION</th>
+<th align="left">X__1</th>
+<th align="left">X__2</th>
+<th align="left">X__3</th>
+<th align="left">X__4</th>
+<th align="left">X__5</th>
+<th align="left">X__6</th>
+<th align="left">X__7</th>
+<th align="left">X__8</th>
+<th align="left">X__9</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">analysis of ridership</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">1985 to 2017 actuals (000’s)</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">fare media</td>
+<td align="left">2017</td>
+<td align="left">2016</td>
+<td align="left">2015 *</td>
+<td align="left">2014</td>
+<td align="left">2013</td>
+<td align="left">2012</td>
+<td align="left">2011</td>
+<td align="left">2010</td>
+</tr>
+<tr class="odd">
+<td align="left">who</td>
+<td align="left">adult</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">tokens</td>
+<td align="left">76106</td>
+<td align="left">102073</td>
+<td align="left">110945</td>
+<td align="left">111157</td>
+<td align="left">112360</td>
+<td align="left">117962</td>
+<td align="left">124748</td>
+<td align="left">120366</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">tickets</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">1298</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">two-fare</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">NA</td>
+<td align="left">presto - single ride</td>
+<td align="left">67829</td>
+<td align="left">27397</td>
+<td align="left">13323</td>
+<td align="left">9862</td>
+<td align="left">8194</td>
+<td align="left">4399</td>
+<td align="left">1139</td>
+<td align="left">0</td>
+</tr>
+<tr class="even">
+<td align="left">NA</td>
+<td align="left">presto - srvm token ride</td>
+<td align="left">1271</td>
+<td align="left">1157</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+</tbody>
+</table>
+<p>Next, I’m going to remove those first few rows of description and any row that describes a total (it’s just aggregating the other rows). I’m also cleaning up the column names using Sam Firke’s <a href="https://github.com/sfirke/janitor"><code>janitor</code> package</a>, since it feels like they’re yelling too.</p>
+<pre class="r"><code>library(stringr)
+library(janitor)
+
+ttc &lt;- ttc[-c(1:3),] %&gt;%
+  clean_names() %&gt;%
+  filter(!str_detect(x_1, &quot;total&quot;)) %&gt;%
+  mutate(id = row_number())</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="right">id</th>
+<th align="left">toronto_transit_commission</th>
+<th align="left">x_1</th>
+<th align="left">x_2</th>
+<th align="left">x_3</th>
+<th align="left">x_4</th>
+<th align="left">x_5</th>
+<th align="left">x_6</th>
+<th align="left">x_7</th>
+<th align="left">x_8</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="left">NA</td>
+<td align="left">fare media</td>
+<td align="left">2017</td>
+<td align="left">2016</td>
+<td align="left">2015 *</td>
+<td align="left">2014</td>
+<td align="left">2013</td>
+<td align="left">2012</td>
+<td align="left">2011</td>
+</tr>
+<tr class="even">
+<td align="right">2</td>
+<td align="left">who</td>
+<td align="left">adult</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left">NA</td>
+<td align="left">tokens</td>
+<td align="left">76106</td>
+<td align="left">102073</td>
+<td align="left">110945</td>
+<td align="left">111157</td>
+<td align="left">112360</td>
+<td align="left">117962</td>
+<td align="left">124748</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">NA</td>
+<td align="left">tickets</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left">NA</td>
+<td align="left">two-fare</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left">NA</td>
+<td align="left">presto - single ride</td>
+<td align="left">67829</td>
+<td align="left">27397</td>
+<td align="left">13323</td>
+<td align="left">9862</td>
+<td align="left">8194</td>
+<td align="left">4399</td>
+<td align="left">1139</td>
+</tr>
+</tbody>
+</table>
+<p>At this point, I’ve also added in an <code>id</code> column that’s just the row number. I’ll use this to figure out how to cutoff and split the various who/where/when data sets. To do this, I’m getting the <code>id</code> (i.e., row) where the “who”, “where”, and “when” sections start by seeing, for example, where <code>toronto_transit_commission == &quot;who&quot;</code>.</p>
+<pre class="r"><code>who_start &lt;- ttc %&gt;%
+  filter(toronto_transit_commission == &quot;who&quot;) %&gt;%
+  pull(id)
+
+where_start &lt;- ttc %&gt;%
+  filter(toronto_transit_commission == &quot;where&quot;) %&gt;%
+  pull(id)
+
+when_start &lt;- ttc %&gt;%
+  filter(toronto_transit_commission == &quot;when&quot;) %&gt;%
+  pull(id)</code></pre>
+<p>From this, we can see that row 2 is where the “who” data set begins, and rows 34 and 41 for the “where” and “when” data sets, respectively.</p>
+<pre class="r"><code>ttc_who &lt;- ttc[who_start:(where_start - 1), -1]</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">x_1</th>
+<th align="left">x_2</th>
+<th align="left">x_3</th>
+<th align="left">x_4</th>
+<th align="left">x_5</th>
+<th align="left">x_6</th>
+<th align="left">x_7</th>
+<th align="left">x_8</th>
+<th align="left">x_9</th>
+<th align="left">x_10</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">tokens</td>
+<td align="left">76106</td>
+<td align="left">102073</td>
+<td align="left">110945</td>
+<td align="left">111157</td>
+<td align="left">112360</td>
+<td align="left">117962</td>
+<td align="left">124748</td>
+<td align="left">120366</td>
+<td align="left">114686</td>
+</tr>
+<tr class="odd">
+<td align="left">tickets</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">1298</td>
+<td align="left">8807</td>
+</tr>
+<tr class="even">
+<td align="left">two-fare</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">presto - single ride</td>
+<td align="left">67829</td>
+<td align="left">27397</td>
+<td align="left">13323</td>
+<td align="left">9862</td>
+<td align="left">8194</td>
+<td align="left">4399</td>
+<td align="left">1139</td>
+<td align="left">0</td>
+<td align="left">0</td>
+</tr>
+<tr class="even">
+<td align="left">presto - srvm token ride</td>
+<td align="left">1271</td>
+<td align="left">1157</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+</tbody>
+</table>
+<p>Since this contains a few different sections (adult, senior/student, etc), I’m repeating a similar process to understand where each of those sections starts. If you know of a more clever way to do this, let me know!</p>
+<pre class="r"><code>ttc_who &lt;- ttc_who %&gt;%
+  mutate(id = row_number())
+
+adult_start &lt;- ttc_who %&gt;%
+  filter(x_1 == &quot;adult&quot;) %&gt;%
+  pull(id)
+
+senior_student_start &lt;- ttc_who %&gt;%
+  filter(x_1 == &quot;senior/student&quot;) %&gt;%
+  pull(id)
+
+children_start &lt;- ttc_who %&gt;%
+  filter(x_1 == &quot;children&quot;) %&gt;%
+  pull(id)
+
+remaining_start &lt;- ttc_who %&gt;%
+  filter(x_1 == &quot;day/vist./other&quot;) %&gt;%
+  pull(id)</code></pre>
+<p>I’ve recomputed the <code>id</code> field so that it uses the new row numbers from <code>ttc_who</code>, and not from the original <code>ttc</code> sedate. Again, we can see that the adult, senior/student, children, and remaining sections start at rows 1, 14, 23, and 28. Now let’s split them into individual data sets, adding a “who” column that describes the main heading so that data’s not lost.</p>
+<pre class="r"><code>adult &lt;- ttc_who[(adult_start + 1):(senior_student_start - 1), ] %&gt;%
+  mutate(who = &quot;adult&quot;)
+
+senior_student &lt;- ttc_who[(senior_student_start + 1):(children_start - 1), ] %&gt;%
+  mutate(who = &quot;senior/student&quot;)
+
+children &lt;- ttc_who[(children_start + 1):(remaining_start - 1), ] %&gt;%
+  mutate(who = &quot;children&quot;)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">who</th>
+<th align="left">x_1</th>
+<th align="left">x_2</th>
+<th align="left">x_3</th>
+<th align="left">x_4</th>
+<th align="left">x_5</th>
+<th align="left">x_6</th>
+<th align="left">x_7</th>
+<th align="left">x_8</th>
+<th align="left">x_9</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">tokens</td>
+<td align="left">76106</td>
+<td align="left">102073</td>
+<td align="left">110945</td>
+<td align="left">111157</td>
+<td align="left">112360</td>
+<td align="left">117962</td>
+<td align="left">124748</td>
+<td align="left">120366</td>
+</tr>
+<tr class="even">
+<td align="left">adult</td>
+<td align="left">tickets</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">1298</td>
+</tr>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">two-fare</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">adult</td>
+<td align="left">presto - single ride</td>
+<td align="left">67829</td>
+<td align="left">27397</td>
+<td align="left">13323</td>
+<td align="left">9862</td>
+<td align="left">8194</td>
+<td align="left">4399</td>
+<td align="left">1139</td>
+<td align="left">0</td>
+</tr>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">presto - srvm token ride</td>
+<td align="left">1271</td>
+<td align="left">1157</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">adult</td>
+<td align="left">presto - srvm cash ride</td>
+<td align="left">821</td>
+<td align="left">582</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+</tbody>
+</table>
+<p>Starting to look a lot better! The “remaining” section is a bit of an anomaly in that its first column actually describes the “who” and not the fare type, so it needs some additional massaging. I’m doing this weird renaming and rearranging so that we can easily stick this together with the other sections.</p>
+<pre class="r"><code>remaining &lt;- ttc_who[-c(1:(remaining_start -1)), ] %&gt;%
+  mutate(who = x_1,
+         x_1 = NA)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">who</th>
+<th align="left">x_1</th>
+<th align="left">x_2</th>
+<th align="left">x_3</th>
+<th align="left">x_4</th>
+<th align="left">x_5</th>
+<th align="left">x_6</th>
+<th align="left">x_7</th>
+<th align="left">x_8</th>
+<th align="left">x_9</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">day/vist./other</td>
+<td align="left">NA</td>
+<td align="left">6728</td>
+<td align="left">9130</td>
+<td align="left">8561</td>
+<td align="left">10033</td>
+<td align="left">11428</td>
+<td align="left">11929</td>
+<td align="left">10642</td>
+<td align="left">10605</td>
+</tr>
+<tr class="even">
+<td align="left">blind/war amps</td>
+<td align="left">NA</td>
+<td align="left">1086</td>
+<td align="left">1088</td>
+<td align="left">1086</td>
+<td align="left">1119</td>
+<td align="left">1109</td>
+<td align="left">1086</td>
+<td align="left">1060</td>
+<td align="left">1073</td>
+</tr>
+<tr class="odd">
+<td align="left">premium express</td>
+<td align="left">NA</td>
+<td align="left">448</td>
+<td align="left">474</td>
+<td align="left">490</td>
+<td align="left">451</td>
+<td align="left">401</td>
+<td align="left">372</td>
+<td align="left">344</td>
+<td align="left">322</td>
+</tr>
+<tr class="even">
+<td align="left">postal carriers</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="odd">
+<td align="left">gta pass</td>
+<td align="left">NA</td>
+<td align="left">4283</td>
+<td align="left">4855</td>
+<td align="left">5471</td>
+<td align="left">6087</td>
+<td align="left">5784</td>
+<td align="left">5388</td>
+<td align="left">5642</td>
+<td align="left">5667</td>
+</tr>
+</tbody>
+</table>
+<p>Now, we can put the “who” back together and start rearranging, first by giving appropriate names to the columns.</p>
+<pre class="r"><code>the_who &lt;- adult %&gt;%
+  bind_rows(senior_student) %&gt;%
+  bind_rows(children) %&gt;%
+  bind_rows(remaining) %&gt;%
+  select(who, everything(), -id)
+
+colnames(the_who) &lt;- c(&quot;who&quot;, &quot;fare_type&quot;, 2017:1985)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">who</th>
+<th align="left">fare_type</th>
+<th align="left">2017</th>
+<th align="left">2016</th>
+<th align="left">2015</th>
+<th align="left">2014</th>
+<th align="left">2013</th>
+<th align="left">2012</th>
+<th align="left">2011</th>
+<th align="left">2010</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">tokens</td>
+<td align="left">76106</td>
+<td align="left">102073</td>
+<td align="left">110945</td>
+<td align="left">111157</td>
+<td align="left">112360</td>
+<td align="left">117962</td>
+<td align="left">124748</td>
+<td align="left">120366</td>
+</tr>
+<tr class="even">
+<td align="left">adult</td>
+<td align="left">tickets</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">1298</td>
+</tr>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">two-fare</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">adult</td>
+<td align="left">presto - single ride</td>
+<td align="left">67829</td>
+<td align="left">27397</td>
+<td align="left">13323</td>
+<td align="left">9862</td>
+<td align="left">8194</td>
+<td align="left">4399</td>
+<td align="left">1139</td>
+<td align="left">0</td>
+</tr>
+<tr class="odd">
+<td align="left">adult</td>
+<td align="left">presto - srvm token ride</td>
+<td align="left">1271</td>
+<td align="left">1157</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+<tr class="even">
+<td align="left">adult</td>
+<td align="left">presto - srvm cash ride</td>
+<td align="left">821</td>
+<td align="left">582</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+<td align="left">NA</td>
+</tr>
+</tbody>
+</table>
+<p>We’re getting close 🙏. This data is in a good place, but it’s in a wide format – each year’s data is in a different column. This will make it difficult to, for example, plot rides paid with tokens by year. The last step is to convert the data to a long format, so that we have one row for every observation (i.e., one row for every who/fare_type/year combination).</p>
+<pre class="r"><code>library(tidyr)
+
+the_who &lt;- the_who %&gt;%
+  gather(key = year, value = n, -who, -fare_type) %&gt;%
+  mutate(year = as.numeric(year),
+         n = as.numeric(n)) %&gt;%
+  select(year, who, fare_type, n)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="right">year</th>
+<th align="left">who</th>
+<th align="left">fare_type</th>
+<th align="right">n</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">adult</td>
+<td align="left">tokens</td>
+<td align="right">76106</td>
+</tr>
+<tr class="even">
+<td align="right">2017</td>
+<td align="left">adult</td>
+<td align="left">tickets</td>
+<td align="right">NA</td>
+</tr>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">adult</td>
+<td align="left">two-fare</td>
+<td align="right">NA</td>
+</tr>
+<tr class="even">
+<td align="right">2017</td>
+<td align="left">adult</td>
+<td align="left">presto - single ride</td>
+<td align="right">67829</td>
+</tr>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">adult</td>
+<td align="left">presto - srvm token ride</td>
+<td align="right">1271</td>
+</tr>
+<tr class="even">
+<td align="right">2017</td>
+<td align="left">adult</td>
+<td align="left">presto - srvm cash ride</td>
+<td align="right">821</td>
+</tr>
+</tbody>
+</table>
+<p>Now we’re done with the “who”! The “where” and “when” follow very similar patterns, so I’ll go through them quickly.</p>
+<pre class="r"><code>ttc_where &lt;- ttc[(where_start + 1):(when_start - 1), -1] %&gt;%
+  filter(x_1 != &quot;rail&quot;) %&gt;%
+  mutate(where = if_else(x_1 == &quot;bus&quot;, &quot;bus&quot;, &quot;rail&quot;)) %&gt;%
+  select(where, x_1, everything())
+
+colnames(ttc_where) &lt;- c(&quot;where&quot;, &quot;method&quot;, 2017:1985)
+
+ttc_where &lt;- ttc_where %&gt;%
+  gather(key = year, value = n, -where, -method) %&gt;%
+  mutate(year = as.numeric(year),
+         n = as.numeric(n)) %&gt;%
+  select(year, where, method, n)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="right">year</th>
+<th align="left">where</th>
+<th align="left">method</th>
+<th align="right">n</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">bus</td>
+<td align="left">bus</td>
+<td align="right">261113</td>
+</tr>
+<tr class="even">
+<td align="right">2017</td>
+<td align="left">rail</td>
+<td align="left">subway</td>
+<td align="right">213012</td>
+</tr>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">rail</td>
+<td align="left">s.r.t.</td>
+<td align="right">3177</td>
+</tr>
+<tr class="even">
+<td align="right">2017</td>
+<td align="left">rail</td>
+<td align="left">trolley coach</td>
+<td align="right">0</td>
+</tr>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">rail</td>
+<td align="left">streetcar</td>
+<td align="right">55914</td>
+</tr>
+<tr class="even">
+<td align="right">2016</td>
+<td align="left">bus</td>
+<td align="left">bus</td>
+<td align="right">252899</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>ttc_when &lt;- ttc[when_start:nrow(ttc), -1] %&gt;%
+  select(-id)
+
+colnames(ttc_when) = c(&quot;when&quot;, 2017:1985)
+
+ttc_when &lt;- ttc_when %&gt;%
+  gather(key = year, value = n, -when) %&gt;%
+  mutate(year = as.numeric(year),
+         n = as.numeric(n)) %&gt;%
+  select(year, when, n)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="right">year</th>
+<th align="left">when</th>
+<th align="right">n</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">2017</td>
+<td align="left">weekday</td>
+<td align="right">424155</td>
+</tr>
+<tr class="even">
+<td align="right">2017</td>
+<td align="left">weekend/holiday</td>
+<td align="right">109061</td>
+</tr>
+<tr class="odd">
+<td align="right">2016</td>
+<td align="left">weekday</td>
+<td align="right">424117</td>
+</tr>
+<tr class="even">
+<td align="right">2016</td>
+<td align="left">weekend/holiday</td>
+<td align="right">113962</td>
+</tr>
+<tr class="odd">
+<td align="right">2015</td>
+<td align="left">weekday</td>
+<td align="right">423808</td>
+</tr>
+<tr class="even">
+<td align="right">2015</td>
+<td align="left">weekend/holiday</td>
+<td align="right">110197</td>
+</tr>
+</tbody>
+</table>
+<p>Now that we have all three datasets in a tidy, analyzable format, we can explore.</p>
+<p>Let’s start by looking at TTC trips over time, just for adults.</p>
+<pre class="r"><code>library(plotly)
+
+the_who %&gt;%
+  filter(who == &quot;adult&quot;) %&gt;%
+  group_by(year) %&gt;%
+  summarise(trips = sum(n/1000, na.rm = TRUE)) %&gt;%
+  plot_ly(x = ~year, y = ~trips) %&gt;%
+  add_lines() %&gt;%
+  layout(title = &quot;Annual adult TTC trips&quot;, 
+         yaxis = list(title = &quot;TTC trips (millions)&quot;, 
+                      rangemode = &quot;tozero&quot;))</code></pre>
+<div id="htmlwidget-1" style="width:768px;height:576px;" class="plotly html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"visdat":{"465775ca01f7":["function () ","plotlyVisDat"]},"cur_data":"465775ca01f7","attrs":{"465775ca01f7":{"x":{},"y":{},"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"type":"scatter","mode":"lines"}},"layout":{"margin":{"b":40,"l":60,"t":25,"r":10},"title":"Annual adult TTC trips","yaxis":{"domain":[0,1],"title":"TTC trips (millions)","rangemode":"tozero"},"xaxis":{"domain":[0,1],"title":"year"},"hovermode":"closest","showlegend":false},"source":"A","config":{"modeBarButtonsToAdd":[{"name":"Collaborate","icon":{"width":1000,"ascent":500,"descent":-50,"path":"M487 375c7-10 9-23 5-36l-79-259c-3-12-11-23-22-31-11-8-22-12-35-12l-263 0c-15 0-29 5-43 15-13 10-23 23-28 37-5 13-5 25-1 37 0 0 0 3 1 7 1 5 1 8 1 11 0 2 0 4-1 6 0 3-1 5-1 6 1 2 2 4 3 6 1 2 2 4 4 6 2 3 4 5 5 7 5 7 9 16 13 26 4 10 7 19 9 26 0 2 0 5 0 9-1 4-1 6 0 8 0 2 2 5 4 8 3 3 5 5 5 7 4 6 8 15 12 26 4 11 7 19 7 26 1 1 0 4 0 9-1 4-1 7 0 8 1 2 3 5 6 8 4 4 6 6 6 7 4 5 8 13 13 24 4 11 7 20 7 28 1 1 0 4 0 7-1 3-1 6-1 7 0 2 1 4 3 6 1 1 3 4 5 6 2 3 3 5 5 6 1 2 3 5 4 9 2 3 3 7 5 10 1 3 2 6 4 10 2 4 4 7 6 9 2 3 4 5 7 7 3 2 7 3 11 3 3 0 8 0 13-1l0-1c7 2 12 2 14 2l218 0c14 0 25-5 32-16 8-10 10-23 6-37l-79-259c-7-22-13-37-20-43-7-7-19-10-37-10l-248 0c-5 0-9-2-11-5-2-3-2-7 0-12 4-13 18-20 41-20l264 0c5 0 10 2 16 5 5 3 8 6 10 11l85 282c2 5 2 10 2 17 7-3 13-7 17-13z m-304 0c-1-3-1-5 0-7 1-1 3-2 6-2l174 0c2 0 4 1 7 2 2 2 4 4 5 7l6 18c0 3 0 5-1 7-1 1-3 2-6 2l-173 0c-3 0-5-1-8-2-2-2-4-4-4-7z m-24-73c-1-3-1-5 0-7 2-2 3-2 6-2l174 0c2 0 5 0 7 2 3 2 4 4 5 7l6 18c1 2 0 5-1 6-1 2-3 3-5 3l-174 0c-3 0-5-1-7-3-3-1-4-4-5-6z"},"click":"function(gd) { \n        // is this being viewed in RStudio?\n        if (location.search == '?viewer_pane=1') {\n          alert('To learn about plotly for collaboration, visit:\\n https://cpsievert.github.io/plotly_book/plot-ly-for-collaboration.html');\n        } else {\n          window.open('https://cpsievert.github.io/plotly_book/plot-ly-for-collaboration.html', '_blank');\n        }\n      }"}],"cloud":false},"data":[{"x":[1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017],"y":[335.956,343.992,359.467,366.667,358.471,366.884,336.497,315.049,299.872,293.568,290.378,280.193,292.49,301.573,306.849,323.274,332.395,325.299,322.824,334.819,344.724,359.297,372.976,378.893,381.848,386.351,406.594,419.118,431.142,437.287,434.889,426.973,417.608],"type":"scatter","mode":"lines","marker":{"color":"rgba(31,119,180,1)","line":{"color":"rgba(31,119,180,1)"}},"error_y":{"color":"rgba(31,119,180,1)"},"error_x":{"color":"rgba(31,119,180,1)"},"line":{"color":"rgba(31,119,180,1)"},"xaxis":"x","yaxis":"y","frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.2,"selected":{"opacity":1}},"base_url":"https://plot.ly"},"evals":["config.modeBarButtonsToAdd.0.click"],"jsHooks":[]}</script>
+<p>We can see immediately that there is a huge drop in adult TTC trips in 1990, dropping from a high of 367 million annual trips to 280 million in 1995. It wasn’t until 2007 that the adult trips reached what they’d been in 1990. I’m not from Toronto, so I did some digging.</p>
+<p>I found the TTC’s <a href="https://www.ttc.ca/Coupler/Annual_Reports/1991%20Annual%20Report.pdf">1991 annual report</a> which explained that the decline was due to the recession at the time. This may seem obvious if you were around and cognizant then, but I was, ahem, born during this decline. Former premier Mike Harris was also elected in ’95 and <a href="https://www.blogto.com/city/2016/04/the_year_it_all_went_down_the_tubes_for_the_ttc/">cut provincial funding to the TTC</a>. The increase in ridership during the late 90s seems mostly due to the controversial formation of the “Megacity”, the <a href="https://www.thestar.com/news/gta/2017/01/01/19-years-ago-torontos-six-boroughs-amalgamated.html">amalgamation</a> of six former municipalities into one “City of Toronto”.</p>
+<p>We can also look at what percentage of TTC trips <em>start</em> on the bus, subway, etc. The dataset measures the first point of payment, so we don’t actually see, for example, how many trips were on the bus since you can make a <a href="https://www.tripsavvy.com/the-ttc-transfer-system-3251052">direct transfer</a> a streetcar or subway to the bus.</p>
+<pre class="r"><code>ttc_where %&gt;%
+  group_by(year) %&gt;%
+  mutate(prop = n/sum(n)) %&gt;%
+  ungroup() %&gt;%
+  plot_ly(x = ~year, y = ~prop) %&gt;%
+  add_lines(color = ~method) %&gt;%
+  layout(title = &quot;Percent of trips started by transit type&quot;, 
+         yaxis = list(title = &quot;&quot;, tickformat = &quot;.1%&quot;),
+         legend = list(orientation = &quot;h&quot;))</code></pre>
+<div id="htmlwidget-2" style="width:768px;height:576px;" class="plotly html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"visdat":{"46577304a1ac":["function () ","plotlyVisDat"]},"cur_data":"46577304a1ac","attrs":{"46577304a1ac":{"x":{},"y":{},"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"type":"scatter","mode":"lines","color":{}}},"layout":{"margin":{"b":40,"l":60,"t":25,"r":10},"title":"Percent of trips started by transit type","yaxis":{"domain":[0,1],"title":"","tickformat":".1%"},"legend":{"orientation":"h"},"xaxis":{"domain":[0,1],"title":"year"},"hovermode":"closest","showlegend":true},"source":"A","config":{"modeBarButtonsToAdd":[{"name":"Collaborate","icon":{"width":1000,"ascent":500,"descent":-50,"path":"M487 375c7-10 9-23 5-36l-79-259c-3-12-11-23-22-31-11-8-22-12-35-12l-263 0c-15 0-29 5-43 15-13 10-23 23-28 37-5 13-5 25-1 37 0 0 0 3 1 7 1 5 1 8 1 11 0 2 0 4-1 6 0 3-1 5-1 6 1 2 2 4 3 6 1 2 2 4 4 6 2 3 4 5 5 7 5 7 9 16 13 26 4 10 7 19 9 26 0 2 0 5 0 9-1 4-1 6 0 8 0 2 2 5 4 8 3 3 5 5 5 7 4 6 8 15 12 26 4 11 7 19 7 26 1 1 0 4 0 9-1 4-1 7 0 8 1 2 3 5 6 8 4 4 6 6 6 7 4 5 8 13 13 24 4 11 7 20 7 28 1 1 0 4 0 7-1 3-1 6-1 7 0 2 1 4 3 6 1 1 3 4 5 6 2 3 3 5 5 6 1 2 3 5 4 9 2 3 3 7 5 10 1 3 2 6 4 10 2 4 4 7 6 9 2 3 4 5 7 7 3 2 7 3 11 3 3 0 8 0 13-1l0-1c7 2 12 2 14 2l218 0c14 0 25-5 32-16 8-10 10-23 6-37l-79-259c-7-22-13-37-20-43-7-7-19-10-37-10l-248 0c-5 0-9-2-11-5-2-3-2-7 0-12 4-13 18-20 41-20l264 0c5 0 10 2 16 5 5 3 8 6 10 11l85 282c2 5 2 10 2 17 7-3 13-7 17-13z m-304 0c-1-3-1-5 0-7 1-1 3-2 6-2l174 0c2 0 4 1 7 2 2 2 4 4 5 7l6 18c0 3 0 5-1 7-1 1-3 2-6 2l-173 0c-3 0-5-1-8-2-2-2-4-4-4-7z m-24-73c-1-3-1-5 0-7 2-2 3-2 6-2l174 0c2 0 5 0 7 2 3 2 4 4 5 7l6 18c1 2 0 5-1 6-1 2-3 3-5 3l-174 0c-3 0-5-1-7-3-3-1-4-4-5-6z"},"click":"function(gd) { \n        // is this being viewed in RStudio?\n        if (location.search == '?viewer_pane=1') {\n          alert('To learn about plotly for collaboration, visit:\\n https://cpsievert.github.io/plotly_book/plot-ly-for-collaboration.html');\n        } else {\n          window.open('https://cpsievert.github.io/plotly_book/plot-ly-for-collaboration.html', '_blank');\n        }\n      }"}],"cloud":false},"data":[{"x":[1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017],"y":[0.445876527212144,0.428360226025596,0.445189588604547,0.44890662926803,0.439464330879514,0.44134580627741,0.445932851919173,0.476176929679828,0.480475748757894,0.492000041210348,0.495932006018261,0.504980801761405,0.516095745268938,0.503538818952942,0.501244291161585,0.495018974176608,0.489917689104342,0.499091541347503,0.483007409746135,0.483029139031665,0.486737628124855,0.464579434206738,0.470542816066329,0.462817655881723,0.463772698431561,0.460567248411566,0.446342501984131,0.456378998729589,0.456913064505687,0.458648317642549,0.447454611848204,0.470003475326114,0.489694607813719],"type":"scatter","mode":"lines","name":"bus","marker":{"color":"rgba(102,194,165,1)","line":{"color":"rgba(102,194,165,1)"}},"textfont":{"color":"rgba(102,194,165,1)"},"error_y":{"color":"rgba(102,194,165,1)"},"error_x":{"color":"rgba(102,194,165,1)"},"line":{"color":"rgba(102,194,165,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017],"y":[0.00485699740836727,0.0073648789602097,0.00735635303490602,0.00647499865149145,0.00791389890975892,0.00766058262236681,0.00672848194225388,0.00660975483053845,0.00880592652833018,0.00760073354419295,0.00678342504998042,0.0062213033321698,0.00669679875119445,0.00646789592707795,0.00722121892137659,0.0084762688828375,0.00894538718502451,0.00993408560929299,0.00890945507286415,0.00984695012425287,0.0102963684430221,0.00937140080621941,0.0102225247896226,0.00994000428540819,0.00912499761264597,0.00886548222818561,0.00952782681185641,0.00907964288424088,0.00887481578235852,0.00795415237044586,0.00627709478375671,0.00548432479245613,0.00595818580087619],"type":"scatter","mode":"lines","name":"s.r.t.","marker":{"color":"rgba(252,141,98,1)","line":{"color":"rgba(252,141,98,1)"}},"textfont":{"color":"rgba(252,141,98,1)"},"error_y":{"color":"rgba(252,141,98,1)"},"error_x":{"color":"rgba(252,141,98,1)"},"line":{"color":"rgba(252,141,98,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017],"y":[0.134445575712699,0.145549327455942,0.125484805771268,0.126485786719888,0.125078207159117,0.124344016340254,0.126447837762014,0.122075146381827,0.117247163170134,0.110925378362507,0.115091510542262,0.107300700802835,0.0987988406956879,0.110849548096293,0.108106868945702,0.11098797246674,0.110144692887739,0.0976394514112995,0.104207571556836,0.101715144020914,0.0993529984694587,0.11723473941837,0.103073499953237,0.107263766873795,0.104124711130163,0.113414069553814,0.117756422686863,0.114117122918559,0.120555451890159,0.122322672325944,0.119064428235691,0.112635876887966,0.104861819600312],"type":"scatter","mode":"lines","name":"streetcar","marker":{"color":"rgba(141,160,203,1)","line":{"color":"rgba(141,160,203,1)"}},"textfont":{"color":"rgba(141,160,203,1)"},"error_y":{"color":"rgba(141,160,203,1)"},"error_x":{"color":"rgba(141,160,203,1)"},"line":{"color":"rgba(141,160,203,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017],"y":[0.374662162162162,0.378429611892647,0.382948407035484,0.385300178003129,0.39336980782116,0.391554196771145,0.388323466936372,0.392473982748342,0.38888394729151,0.389473846882952,0.382193058389497,0.38149719410359,0.37840861528418,0.379143737023687,0.383427620971337,0.385516784473814,0.390992230822895,0.393334921631905,0.403875563624165,0.405408766823169,0.403613004962664,0.408814425568673,0.416161159190811,0.419978572959074,0.42297759282563,0.417153199806434,0.426373248517149,0.42042423546761,0.413656667821795,0.41107485766106,0.427203865132349,0.411876322993464,0.399485386785093],"type":"scatter","mode":"lines","name":"subway","marker":{"color":"rgba(231,138,195,1)","line":{"color":"rgba(231,138,195,1)"}},"textfont":{"color":"rgba(231,138,195,1)"},"error_y":{"color":"rgba(231,138,195,1)"},"error_x":{"color":"rgba(231,138,195,1)"},"line":{"color":"rgba(231,138,195,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017],"y":[0.0401587375046279,0.0402959556656055,0.0390208455537948,0.0328324073574626,0.0341737552304504,0.0350953979888249,0.0325673614401875,0.00266418635946479,0.00458721425213159,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"type":"scatter","mode":"lines","name":"trolley coach","marker":{"color":"rgba(166,216,84,1)","line":{"color":"rgba(166,216,84,1)"}},"textfont":{"color":"rgba(166,216,84,1)"},"error_y":{"color":"rgba(166,216,84,1)"},"error_x":{"color":"rgba(166,216,84,1)"},"line":{"color":"rgba(166,216,84,1)"},"xaxis":"x","yaxis":"y","frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.2,"selected":{"opacity":1}},"base_url":"https://plot.ly"},"evals":["config.modeBarButtonsToAdd.0.click"],"jsHooks":[]}</script>
+<p>The <a href="https://en.wikipedia.org/wiki/Line_3_Scarborough">S.R.T</a> is an extension of the subway line in the east (in Scarborough) – it is a light metro system, and not counted in with the rest of the subway. This line is quite short (6 instead of the 69 stations on the main subway) and contains the <a href="https://en.wikipedia.org/wiki/Ellesmere_station">least used station</a>, which has no direct bus connection.</p>
+<p>I’d be especially interested to see how this data changes for 2018 – in late 2017 we saw the <a href="https://en.wikipedia.org/wiki/Line_1_Yonge%E2%80%93University#Toronto%E2%80%93York_Spadina_Subway_Extension">subway extension</a> of Line 1 into Vaughan, with 6 new stations including a stop at <a href="https://www.thestar.com/opinion/star-columnists/2017/12/19/torontos-new-subway-extension-is-beautiful-but-its-not-the-line-we-shouldve-built.html">York Univesity</a>, which is expected to carry 27,000 passengers a day by 2020 – previously, the primary route to the university was an express bus. The city is also experimenting with the <a href="https://www.toronto.ca/city-government/planning-development/planning-studies-initiatives/king-street-pilot/">King Street Pilot</a>, intended to make travelling by streetcar less painful (i.e., less stuck in traffic with cars).</p>
+<p>There’s a lot more exploration that can be done with this data; this is not intended to be exhaustive, or to shed new light on the operations of the TTC or the history of Toronto. I did learn a fair bit about both in the process (including that the TTC had <a href="https://transit.toronto.on.ca/trolleybus/9005.shtml">trolley coaches</a> from 1922 until 1993!) but this is perhaps an indication that I have a lot to learn about my new city and the transit that serves it!</p>
+<p>This is also not intended to <a href="https://en.wikipedia.org/wiki/Roast_(comedy)">roast</a> the way this data set has been put together by the TTC – the original data set is in a tabular format that is verbose, quite detailed, and intended for <em>human</em> reading. It is a great overview and analysis of the TTC over the last 32 years. My goal is to demonstrate how we can take that tabular data, and though it looks daunting, transform it into a machine readable format to allow for additional exploration.</p>
+<p>👋</p>
