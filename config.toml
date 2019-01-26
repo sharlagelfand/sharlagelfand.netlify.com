@@ -1,6 +1,6 @@
 baseurl = "https://sharlagelfand.netlify.com"
 title = "Sharla Gelfand"
-copyright = "Copyright &copy; 2017 - Sharla Gelfand"
+copyright = "Copyright &copy; 2019 - Sharla Gelfand"
 canonifyurls = true
 theme = "hugo-kiera"
 
@@ -15,13 +15,12 @@ disqusShortname = "sharlagelfand"
 [author]
     name = "Sharla Gelfand"
     github = "sharlagelfand"
-    gitlab = ""
-    linkedin = ""
-    facebook = ""
     twitter = "sharlagelfand"
-    instagram = ""
 
 [params]
     tagline = ""
+    
+[permalinks]
+posts = "/posts/:slug/"
 
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
