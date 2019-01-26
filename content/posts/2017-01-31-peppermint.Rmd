@@ -25,7 +25,7 @@ I find my finances to be awkward and hard to coordinate. Previously I
 used a mix of Mint.and, for a while, a spreadsheet that looked something
 like this:
 
-![](/images/2017-01-31-Peppermint/budget.png) 
+![](/images/2017-01-31-Peppermint/budget.png){width=50%}
 
 (what did I do if I had more transactions than the number of provided
 lines? ¯\\(ツ)/¯)
@@ -77,7 +77,7 @@ spending 💰 on, and *especially* cash transactions, which... if you see
 the personal version of my app, you'll see I have no idea what I spend
 that cash on at all. Feeling optimized, and at least there's no more of this:  
 
-![](/images/2017-01-31-Peppermint/nosavings.png)
+![](/images/2017-01-31-Peppermint/nosavings.png){width=50%}
 
 ps: I would be remiss if I didn't shout out Kathyrn Morrison, who also
 picked up Hilary's idea and did a [great
