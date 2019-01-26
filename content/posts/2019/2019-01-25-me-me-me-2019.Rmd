@@ -1,0 +1,34 @@
+---
+title: Me, me, me, 2019
+author: ''
+date: '2019-01-25'
+slug: me-me-me-2019
+categories: []
+tags: []
+---
+
+I have, ahem, a motivation problem.
+
+If you look at my blog you will see a burst of posts immediately after rstudio::conf each year (no I haven't written this year's post yet), followed by months of silence, maybe another post or two six months later, and repeat. I'm super prone to over-extending myself and then seriously burning out. Case in point:
+
+```{r, echo = FALSE}
+blogdown::shortcode("tweet", "1087497501589078016")
+```
+
+Just look at my GitHub commits for the last six months versus the last week:
+
+![](/images/me-me-me-2019/git-commit.png){width=25%}
+
+This habit means I intend to blog regularly, but when the time comes I can't motivate myself to do it, think of anything to write about, or I am feeling burnt-out-overwhelmed-exhausted-and-uninspired (I think they call this one, uh, `r emo::ji("confounded")`).
+
+They say that you should blog about and analyze data that's interesting to you. Well, sorry, I don't give a shit about baseball. You know what I do find interesting?
+
+Myself `r emo::ji("information_desk_person")`
+
+So, my goal this year is to write one post per month, analyzing *some sort* of data about the self. Some of it will be self-recorded data (eyeshadow, anyone?), while other months I'll rely on data from other sources (Twitter, budgeting apps, etc).
+
+I just want keep something (anything!) going, learn a bit about some APIs, maybe learn a bit about myself, but also not worry about a subject that's so ~complex that I'll get frustrated and lazy. Not that I am not complex `r emo::ji("nail_care")`.
+
+I'm putting it out there for the tiniest bit of accountability; if this totally falls through, then I will be a little embarrassed because I said I would do it and couldn't follow through. But also, because I am excited!
+
+New year, same me, maybe just a little more active.
