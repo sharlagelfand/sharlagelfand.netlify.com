@@ -6,25 +6,39 @@ slug: horoscopes
 
 
 
-<p>If you’ve ever talked to me for ~10 seconds, chances are I’m wondering what your zodiac sign is – any longer than that, I’ve probably asked you.</p>
-<p>Astrology is not for everyone, but it’s definitely for me! YMMV on different sites, and horoscope quality definitely varies, but I’ve found an astrologer that I’m a pretty big fan of – <a href="http://chaninicholas.com">Chani Nicholas</a>!</p>
-<p>In her own words, “Many of my ideas, philosophies and concepts have been and are constantly shaped by LGBTQI2S, POC, feminist writers, artists, thinkers, activists and community members as well as by my many brilliant colleagues and folks that I work with both in individual readings and group settings. I aim to make astrology practical, approachable and useful. Otherwise it’s all just cosmic hot air and planets far from reach.”</p>
+<p>If you’ve ever talked to me for ~10 seconds, chances are I’m wondering what your
+zodiac sign is – any longer than that, I’ve probably asked you.</p>
+<p>Astrology is not for everyone, but it’s definitely for me! YMMV on different
+sites, and horoscope quality definitely varies, but I’ve found an astrologer
+that I’m a pretty big fan of – <a href="http://chaninicholas.com">Chani Nicholas</a>!</p>
+<p>In her own words, “Many of my ideas, philosophies and concepts have been and are
+constantly shaped by LGBTQI2S, POC, feminist writers, artists, thinkers,
+activists and community members as well as by my many brilliant colleagues and
+folks that I work with both in individual readings and group settings. I aim to
+make astrology practical, approachable and useful. Otherwise it’s all just
+cosmic hot air and planets far from reach.”</p>
 <p>Not bad!</p>
-<p>I like her work so much that I decided to make an R package, <a href="https://github.com/sharlagelfand/astrologer">astrologer</a>, packed full of Chani’s hot-air-less weekly horoscopes.</p>
+<p>I like her work so much that I decided to make an R package,
+<a href="https://github.com/sharlagelfand/astrologer">astrologer</a>, packed full of Chani’s
+hot-air-less weekly horoscopes.</p>
 <p>Let’s take a look!</p>
 <pre class="r"><code>devtools::install_github(&quot;sharlagelfand/astrologer&quot;)
 library(astrologer)</code></pre>
-<p>It includes one dataset, <code>horoscopes</code>, which is a tidy-ish dataframe containing the start date, zodiac sign, horoscope, and URL that the horoscope is pulled from.</p>
+<p>It includes one dataset, <code>horoscopes</code>, which is a tidy-ish dataframe containing
+the start date, zodiac sign, horoscope, and URL that the horoscope is pulled from.</p>
 <pre class="r"><code>library(dplyr)
 
 horoscopes %&gt;% glimpse()</code></pre>
 <pre><code>## Observations: 1,272
 ## Variables: 4
-## $ startdate  &lt;date&gt; 2015-01-05, 2015-01-05, 2015-01-05, 2015-01-05, 20...
-## $ zodiacsign &lt;fctr&gt; Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, ...
-## $ horoscope  &lt;chr&gt; &quot;Considering the fact that this past week (especial...
-## $ url        &lt;chr&gt; &quot;http://chaninicholas.com/2015/01/horoscopes-week-j...</code></pre>
-<p>People like to say that horoscopes are all the same – so I’ll be digging into the text from these horoscopes to really find out what’s what. In order to do cool stuff with this data, I’ll be using Julia Silge and David Robinson’s <a href="http://tidytextmining.com/">tidytext</a> package/framework pretty heavily!</p>
+## $ startdate  &lt;date&gt; 2015-01-05, 2015-01-05, 2015-01-05, 2015-01-05, 2015…
+## $ zodiacsign &lt;fct&gt; Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, Sco…
+## $ horoscope  &lt;chr&gt; &quot;Considering the fact that this past week (especially…
+## $ url        &lt;chr&gt; &quot;http://chaninicholas.com/2015/01/horoscopes-week-jan…</code></pre>
+<p>People like to say that horoscopes are all the same – so I’ll be digging into the
+text from these horoscopes to really find out what’s what. In order to do cool
+stuff with this data, I’ll be using Julia Silge and David Robinson’s
+<a href="http://tidytextmining.com/">tidytext</a> package/framework pretty heavily!</p>
 <p>First, let’s get it into a tidy-er form, with one row per word, and remove stop words.</p>
 <pre class="r"><code>library(tidytext)
 
@@ -35,14 +49,14 @@ horoscopes_tidy &lt;- horoscopes %&gt;%
 
 head(horoscopes_tidy)</code></pre>
 <pre><code>## # A tibble: 6 x 3
-##    startdate  zodiacsign       word
-##       &lt;date&gt;      &lt;fctr&gt;      &lt;chr&gt;
-## 1 2017-02-06      Pisces      brows
-## 2 2017-02-06    Aquarius  recharged
-## 3 2017-02-06    Aquarius lifesavers
-## 4 2017-02-06    Aquarius   canvases
-## 5 2017-02-06    Aquarius     gaping
-## 6 2017-02-06 Sagittarius   believes</code></pre>
+##   startdate  zodiacsign word   
+##   &lt;date&gt;     &lt;fct&gt;      &lt;chr&gt;  
+## 1 2015-01-05 Aries      past   
+## 2 2015-01-05 Aries      week   
+## 3 2015-01-05 Aries      moon   
+## 4 2015-01-05 Aries      january
+## 5 2015-01-05 Aries      4th    
+## 6 2015-01-05 Aries      5th</code></pre>
 <p>What are the most common words used in all these horoscopes?</p>
 <pre class="r"><code>library(ggplot2)
 
@@ -55,7 +69,9 @@ horoscopes_tidy %&gt;%
   coord_flip() +
   theme_minimal()</code></pre>
 <p><img src="/posts/2017-02-17-Horoscopes_files/figure-html/commonwords-1.png" width="672" /></p>
-<p>Not a huge surprise that “week” comes in #2, considering these are weekly horoscopes! You can get the general vibe of how Chani writes from this – lots about feelings, energy, and relationships.</p>
+<p>Not a huge surprise that “week” comes in #2, considering these are weekly horoscopes!
+You can get the general vibe of how Chani writes from this – lots about feelings,
+energy, and relationships.</p>
 <p>This is overall – what’s the most-used word for each sign?</p>
 <pre class="r"><code>horoscopes_tidy %&gt;%
   group_by(zodiacsign) %&gt;%
@@ -64,22 +80,27 @@ horoscopes_tidy %&gt;%
   print(n = 12)</code></pre>
 <pre><code>## # A tibble: 12 x 3
 ## # Groups:   zodiacsign [12]
-##     zodiacsign  word     n
-##         &lt;fctr&gt; &lt;chr&gt; &lt;int&gt;
-##  1   Capricorn  life   127
-##  2       Aries  life   126
-##  3     Scorpio  life   124
-##  4 Sagittarius  life   122
-##  5       Virgo  week   118
-##  6      Taurus  life   117
-##  7      Pisces  life   112
-##  8      Cancer  time   110
-##  9       Libra  week   109
-## 10    Aquarius  week   108
-## 11         Leo  life   106
-## 12      Gemini  week   100</code></pre>
-<p>Most of the same, no surprise there! This isn’t super interesting because it doesn’t tell much about the difference in common words used for each sign, just that – yes; life, week, we got it 👍.</p>
-<p>I’ll use tf-idf to find out which words are the most important for each sign. Julia and David explained tf-idf really well <a href="http://tidytextmining.com/tfidf.html">here</a> – essentially, it looks at words that are used a lot in horoscopes for one sign, but not so much for other signs.</p>
+##    zodiacsign  word      n
+##    &lt;fct&gt;       &lt;chr&gt; &lt;int&gt;
+##  1 Capricorn   life    127
+##  2 Aries       life    126
+##  3 Scorpio     life    124
+##  4 Sagittarius life    122
+##  5 Virgo       week    118
+##  6 Taurus      life    117
+##  7 Pisces      life    112
+##  8 Cancer      time    110
+##  9 Libra       week    109
+## 10 Aquarius    week    108
+## 11 Leo         life    106
+## 12 Gemini      week    100</code></pre>
+<p>Most of the same, no surprise there! This isn’t super interesting because it doesn’t
+tell much about the difference in common words used for each sign, just that –
+yes; life, week, we got it 👍.</p>
+<p>I’ll use tf-idf to find out which words are the most important for each sign.
+Julia and David explained tf-idf really well <a href="http://tidytextmining.com/tfidf.html">here</a> –
+essentially, it looks at words that are used a lot in horoscopes for one sign,
+but not so much for other signs.</p>
 <pre class="r"><code>horoscope_words &lt;- horoscopes %&gt;%
   unnest_tokens(word, horoscope) %&gt;%
   count(zodiacsign, word, sort = TRUE) %&gt;%
@@ -97,7 +118,8 @@ horoscope_words &lt;- horoscope_words %&gt;%
   group_by(zodiacsign) %&gt;%
   top_n(5, wt = tf_idf) %&gt;%
   ungroup()</code></pre>
-<p>Let’s do the top 5-ish for each sign. There’s more than 5 for some signs because of ties in the tf-idf.</p>
+<p>Let’s do the top 5-ish for each sign. There’s more than 5 for some signs because of
+ties in the tf-idf.</p>
 <pre class="r"><code>sign_color &lt;- c(&quot;Aries&quot; = &quot;#DC863B&quot;, &quot;Taurus&quot; = &quot;#CDC08C&quot; , &quot;Gemini&quot; =  &quot;#FAEFD1&quot;,
                 &quot;Cancer&quot; = &quot;#ABDDDE&quot;, &quot;Leo&quot; = &quot;#D25C26&quot;, &quot;Virgo&quot; =  &quot;#B4AB6B&quot;,
                 &quot;Libra&quot; = &quot;#F9CFBC&quot;, &quot;Scorpio&quot; = &quot;#57A4BC&quot;, &quot;Sagittarius&quot; = &quot;#C93312&quot;,
@@ -112,11 +134,19 @@ ggplot(horoscope_words, aes(word, tf_idf, fill = zodiacsign)) +
   theme_minimal() + 
   theme(axis.text.x = element_blank())</code></pre>
 <p><img src="/posts/2017-02-17-Horoscopes_files/figure-html/signs-tfidf-1.png" width="672" /></p>
-<p>Understandably, a lot of signs have their own names ranking pretty high (e.g. “aries” for Aries), or symbols that represent them (“bulls” for Taurus, “goat” for Capricorn). There’s also some of the common traits and habits of signs up there, like “organize”, “overwork”, and “procrastinate” for Cancer – yikes, that’s me ♋!</p>
+<p>Understandably, a lot of signs have their own names ranking pretty high (e.g.
+“aries” for Aries), or symbols that represent them (“bulls” for Taurus, “goat”
+for Capricorn). There’s also some of the common traits and habits of signs up there, like
+“organize”, “overwork”, and “procrastinate” for Cancer – yikes, that’s me ♋!</p>
 <p>Ok, feelings time.</p>
-<p>Despite the fact that this is turning into an advertisement for the tidy text mining book, I’ll be pulling from it again to look at the sentiment in this data – horoscopes are pretty personal, and in my opinion meant to serve as inspiration for dealing with the 💩 storm that life can be sometimes, and that the world definitely is right now.</p>
+<p>Despite the fact that this is turning into an advertisement for the tidy text mining
+book, I’ll be pulling from it again to look at the sentiment in this data –
+horoscopes are pretty personal, and in my opinion meant to serve as inspiration
+for dealing with the 💩 storm that life can be sometimes, and that the world
+definitely is right now.</p>
 <p>Let’s peek at the sentiments over time.</p>
-<p>If you’re following along, the relevant chapter is <a href="http://tidytextmining.com/sentiment.html">here</a>. After some fiddling and experimentation, I’ll be using the Bing sentiment dictionary.</p>
+<p>If you’re following along, the relevant chapter is <a href="http://tidytextmining.com/sentiment.html">here</a>.
+After some fiddling and experimentation, I’ll be using the Bing sentiment dictionary.</p>
 <pre class="r"><code>library(tidyr)
 
 horoscopes_sentiment &lt;- horoscopes_tidy %&gt;%
@@ -132,9 +162,18 @@ ggplot(horoscopes_sentiment, aes(x = startdate, y = sentiment, fill = sentiment)
   scale_fill_gradient(low=&quot;#FAEFD1&quot;, high=&quot;#C93312&quot;) + 
   theme_minimal()</code></pre>
 <p><img src="/posts/2017-02-17-Horoscopes_files/figure-html/sentiments-1.png" width="672" /></p>
-<p>The peaks are most interesting to me here – the very highest is from November 7, 2016, the day before the American election. I remember reading those horoscopes and seeing the hope and positivity behind them. Besides that, the next highest are the first horoscopes of 2016 and 2017. New year brings out the best in us! Or at least, the best in Chani’s hopes for us.</p>
-<p>There’s not a ton of dates that scored negative here, which I agree with – I think Chani tends to run on the inspirational side, rather than demotivaing.</p>
-<p>The most negative is <a href="http://chaninicholas.com/2015/05/horoscopes-for-the-week-of-may-25th/">one from May 2015</a>, and reading the opening line I could instantly see why it was about to score so low – “It’s never useful to <em>blame</em> astrological events for our bad behavior.” It follows a theme of being accountable for bad behaviour – so the sentiment is overall a little harsher than we normally see. Why the callout?</p>
+<p>The peaks are most interesting to me here – the very highest is from November 7, 2016,
+the day before the American election. I remember reading those horoscopes and seeing the hope
+and positivity behind them. Besides that, the next highest are the first horoscopes of 2016 and 2017.
+New year brings out the best in us! Or at least, the best in Chani’s hopes for us.</p>
+<p>There’s not a ton of dates that scored negative here, which I agree with – I think
+Chani tends to run on the inspirational side, rather than demotivaing.</p>
+<p>The most negative is <a href="http://chaninicholas.com/2015/05/horoscopes-for-the-week-of-may-25th/">one from May 2015</a>,
+and reading the opening line I could instantly see why it was about to score
+so low – “It’s never useful to <em>blame</em> astrological events for our bad behavior.”
+It follows a theme of being accountable for bad behaviour – so the sentiment
+is overall a little harsher than we normally see. Why the callout?</p>
 <p>That week was a <a href="https://www.astrologyzone.com/everything-you-need-to-know-about-mercury-retrograde/">mercury retrograde</a>!</p>
 <p>😅</p>
-<p>ps: I would love to see what other people can do with this data – bonus points if you are further than four chapters in to the tidy text mining book!</p>
+<p>ps: I would love to see what other people can do with this data – bonus points if you
+are further than four chapters in to the tidy text mining book!</p>
