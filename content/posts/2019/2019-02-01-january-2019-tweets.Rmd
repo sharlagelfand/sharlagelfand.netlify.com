@@ -1,0 +1,260 @@
+---
+title: 'January 2019: Tweets'
+author: ''
+date: '2019-02-01'
+slug: january-2019-tweets
+draft: true
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, out.width = "75%")
+```
+
+For the first post in my [Me, me, me, 2019]("me-me-me-2019") series, I figured I'd do something that is especially topical: tweets. Spoiler alert, but in January my tweeting was at an all time high, absolutely exacerbated by RStudio conf.
+
+As I have before, I'm using the awesome [`rtweet` package](https://rtweet.info/), created by [Mike Kearney](https://twitter.com/kearneymw). I finally met Mike IRL at the conference and didn't even <s>fan over him</s> thank him for `rtweet` `r emo::ji("scream")`.
+
+I'll start by reading in my tweets. I have ~3000 overall, so 2000 should be enough for what I'm trying to do.
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(rtweet)
+```
+
+```{r tweets-raw, cache=TRUE}
+my_tweets_raw <- get_timeline(user = "sharlagelfand",
+                              n = 2000)
+```
+
+There is an absolute ton of information attached to the tweets, so I'm only keeping what I'll use.
+
+```{r keep-columns}
+my_tweets <- my_tweets_raw %>%
+  select(status_id, created_at, text, is_retweet, reply_to_screen_name, favorite_count,
+         retweet_count, hashtags, mentions_screen_name)
+```
+
+The tweets come, by default, in UTC, so I'll set them to my timezone, keep ones from 2018 onwards, and add some additonal date columns for use later on.
+
+```{r time-fixes}
+my_tweets <- my_tweets %>%
+  mutate(created_at = with_tz(created_at, tzone = "America/Toronto")) %>%
+  filter(created_at >= "2018-01-01") %>%
+  mutate_at(vars(created_at), 
+            funs(date = date, 
+                 month = floor_date(., unit = "month"))) %>%
+  mutate_at(vars(date, month), as.Date)
+```
+
+Finally, before looking at January's tweets, I'm deriving the `tweet_type` variable so that information about retweets, replies, and original tweets is all in one variable. To keep it simple, if a tweet has data in the `reply_to_screen_name` field and it's not tto *myself*, I'm counting it as a reply. I like to thread too much to assume a tweet replying to myself is actually part of a conversation with n > 0 other people `r emo::ji("grimace")`.
+
+```{r tweet-type}
+library(forcats)
+
+my_tweets <- my_tweets %>%
+  mutate(tweet_type = case_when(is_retweet ~ "Retweet",
+                                !is.na(reply_to_screen_name) & reply_to_screen_name != "sharlagelfand" ~ "Reply",
+                                TRUE ~ "Original"),
+         tweet_type = fct_relevel(as_factor(tweet_type),
+                                  c("Original", "Reply", "Retweet"))) %>%
+  select(-is_retweet)
+```
+
+Now it's time to look at my tweets for the last month! I will look at all of the rest later on, I promise.
+
+I'm going to mess with the dates *one last time*, by changing the timezone to Central if the tweets were during RStudio conf. That hour difference from Toronto really matters, ok `r emo::ji("information_desk_person")`.
+
+```{r january-tweets}
+january_tweets <- my_tweets %>%
+  filter(month == "2019-01-01")
+```
+
+Ok, let's actually look at some tweets! `r emo::ji("bird")`
+
+In January 2019, I tweeted a total of `r nrow(january_tweets)` times, including original tweets, replies, and retweets. The breakdown is as follows:
+
+```{r type-breakdown}
+library(ggplot2)
+theme_set(theme_minimal())
+
+january_tweets %>%
+  ggplot(aes(x = tweet_type,
+             fill = tweet_type)) +
+  geom_histogram(stat = "count") + 
+  coord_flip() + 
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10))
+```
+
+Broken down daily, it looks a little something like this...
+
+```{r january-breakdown}
+january_tweets %>%
+  ggplot(aes(x = date,
+             fill = tweet_type)) +
+  geom_histogram(binwidth = 1) + 
+  theme(legend.position = "bottom",
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10),
+        legend.title = element_blank())
+```
+
+The conference ran from January 15 - 19 (if you include workshops and the tidyverse dev day, which I did), and you can see absolutely huge increases in tweeting during that time. Aaand I guess during the work week since I've been back `r emo::ji("see_no_evil")`.
+
+It wouldn't be analyzing the self if I didn't look at how ~popular I am, right? So let's check how many likes and retweets I've gotten over the last month.
+
+```{r}
+library(tidyr)
+library(stringr)
+
+january_tweets %>%
+  filter(tweet_type != "Retweet") %>%
+  group_by(date) %>%
+  summarise_at(vars(favorite_count, retweet_count), sum) %>%
+  gather(measure, count, ends_with("count")) %>%
+  mutate(measure = str_replace(measure, "_count", "")) %>%
+  ggplot(aes(x = date,
+             y = count,
+             colour = measure)) + 
+  geom_line() + 
+  scale_x_discrete("Date of original tweet") + 
+  theme(legend.position = "bottom",
+        axis.title.y = element_blank(),
+        axis.text = element_text(size = 10),
+        legend.title = element_blank())
+```
+
+I really am not normally this popular, I promise. I know what my top-favourited tweet is and it is absolutely absurd.
+
+```{r top-tweet}
+january_tweets %>% 
+  filter(tweet_type != "Retweet") %>%
+  filter(favorite_count == max(favorite_count)) %>%
+  pull(status_id) %>%
+  blogdown::shortcode("tweet", .)
+```
+
+But, honestly, enough about me. As you can see, I replied to a lot of other people's tweets. Especially during the conf. Especially to people *who were also at the conf*.
+
+```{r, include = FALSE}
+blogdown::shortcode("tweet", "1085999292039483399")
+```
+
+But who have I been talking to most?
+
+```{r}
+mentions <- january_tweets %>% 
+  filter(tweet_type != "Retweet") %>%
+  select(username = mentions_screen_name) %>% 
+  unnest() %>% 
+  filter(!is.na(username)) %>% 
+  count(username, sort = TRUE)
+
+mentions %>%
+  head(10) %>%
+  ggplot(aes(x = fct_reorder(username, n),
+             y = n,
+             fill = username)) + 
+  labs(x = NULL, y = "Mentions") +
+  geom_col() + 
+  coord_flip() + 
+  theme(legend.position = "none",
+        axis.text = element_text(size = 10))
+```
+
+Yep, checks out. Every single person on that list was at the conference!
+
+For the top 8, let's also get *their* tweets during January. You might think that 1000 each is overkill, but, uh, Mara is on the list.
+
+```{r friends-tweets, cache=TRUE}
+library(purrr)
+
+friends_tweets <- mentions %>%
+  filter(row_number() <= 8) %>%
+  mutate(tweets = map(username, get_timeline, n = 1000)) %>%
+  unnest() %>%
+  filter(!is_retweet) %>%
+  select(username, created_at, text)
+```
+
+(yes, top 10 to top 8, sorry Erin and JD -- I want a 3x3 plot in like just a sec and I need to include myself OK sorry!)
+
+I am going to totally be lazy about timezones here. Let's pretend everyone is in my timezone and look at their tweets for January.
+
+```{r}
+friends_tweets <- friends_tweets %>%
+  mutate(created_at = with_tz(created_at, "America/Toronto")) %>%
+  filter(created_at >= "2019-01-01" & created_at <= "2019-01-31")
+```
+
+Every single one of these people likes and uses R. But would it really be a Twitter analysis if I didn't do some text analysis? I'm going to do tf-idf (using Julia Silge and drob's [`tidytext` package]()), 1) because [I have blogged about it before and can copy my old code](https://sharla.party/posts/horoscopes/), but mostly 2) because it's a fun way to look at differences in how people communicate.
+
+I'm throwing myself back in the mix (hence keeping getting the top 8 before) to see the words that each one of us uses the most, but everyone else uses... not so much.
+
+There's a bunch of data cleaning here to replace quotes that aren't quotes (i.e., ’ -- Hadley was the most guilty of this), remove mentions of other people, and `r emo::ji("sob")` remove emojis. I know, I know. Another time.
+
+```{r}
+library(tidytext)
+
+tidy_words <- friends_tweets %>%
+  select(username, text) %>%
+  bind_rows(
+    january_tweets %>%
+      select(text) %>%
+      mutate(username = "sharlagelfand")
+  ) %>%
+  mutate(text = str_replace_all(text, "’", "'")) %>% 
+  unnest_tokens(word, text, token = "tweets") %>%
+  filter(!str_detect(word, "^@"),
+         !str_detect(word, "[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+")) %>%
+  anti_join(stop_words, by = "word") %>%
+  count(username, word)
+
+total_words <- tidy_words %>%
+  group_by(username) %>%
+  summarize(total = sum(n))
+
+tf_idf_words <- tidy_words %>%
+  left_join(total_words, by = "username") %>%
+  bind_tf_idf(word, username, n) %>%
+  group_by(username) %>%
+  top_n(5, wt = tf_idf) %>%
+  ungroup() 
+
+tf_idf_words %>%
+  ggplot(aes(x = fct_reorder(word, tf_idf), 
+             y = tf_idf, 
+             fill = username)) +
+  geom_col() + 
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~username, ncol = 3, scales = "free") + 
+  coord_flip() + 
+  theme(axis.text.x = element_blank(),
+        legend.position = "none",
+        axis.text = element_text(size = 10),
+        strip.text = element_text(size = 10))
+```
+
+I absolutely **love** how you can see people's personalities immediately.
+
+[Caitlin](https://twitter.com/beeonaposy) loves Texas and data science. [Brooke](https://twitter.com/brookLYNevery1) had her epic [mug thread](https://twitter.com/brookLYNevery1/status/1083867336212393984), her [#rstudioconf drawings](https://twitter.com/brookLYNevery1/status/1085923987681624064), and of course her undercut. [Mara](https://twitter.com/dataandme) is a mix of #SEO badness and umms. 
+
+[Hadley](https://twitter.com/hadleywickham) is all business (I found out DSL = "Domain Specific Language" like, during the conference). [Jen](https://twitter.com/jent103) finally got a flight home after being stuck in Austin for four extra days. [Malcolm](https://twitter.com/malco_barrett) just *is* Epi (ok, sorry Malcolm, I know there are other aspects to your personality).
+
+[Miles](https://twitter.com/MilesMcBain) is, uh, Australian. I am vegan and annoying `r emo::ji("grin")`. [Jacqueline](https://twitter.com/skyetetra) has unlimited T-Mobile internet `r emo::ji("tm")` `r emo::ji("tm")` `r emo::ji("tm")` and gave a talk about Tensorflow. She even got the T-Mobile colours. By default! `r emo::ji("nail_care")`
+
+I don't think there's much more I can do in this post that will have results as cool as quickly as that tf-idf analysis. So, I'll just say that I'm excited to be 8.3% done my 2019 blogging commitment, and I'm going to try to tweet like, significantly less than 400 times in February. Because, let's just look at the past year.
+
+```{r}
+my_tweets %>%
+  ggplot(aes(x = month,
+             fill = tweet_type)) + 
+  geom_histogram(stat = "count") + 
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10))
+```
+
+Woof `r emo::ji("dog")`.
