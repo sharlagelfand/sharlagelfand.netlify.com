@@ -1,0 +1,188 @@
+---
+title: 'January 2019: Tweets'
+author: ''
+date: '2019-01-31'
+slug: january-2019-tweets
+draft: true
+---
+
+
+
+<p>For the first post in my <a href="https://sharla.party/posts/me-me-me-2019/">Me, me, me, 2019</a> series, I figured I’d do something that is especially topical: tweets. Spoiler alert, but in January my tweeting was at an all time high, absolutely exacerbated by RStudio conf.</p>
+<p>As I have before, I’m using the awesome <a href="https://rtweet.info/"><code>rtweet</code> package</a>, created by <a href="https://twitter.com/kearneymw">Mike Kearney</a>. I finally met Mike IRL at the conference and didn’t even <s>fan over him</s> thank him for <code>rtweet</code> 😱.</p>
+<p>I’ll start by reading in my tweets. I have ~3000 overall, so 2500 should be enough for what I’m trying to do.</p>
+<pre class="r"><code>library(dplyr)
+library(lubridate)
+library(rtweet)</code></pre>
+<pre class="r"><code>my_tweets_raw &lt;- get_timeline(user = &quot;sharlagelfand&quot;,
+                              n = 2500)</code></pre>
+<p>There is an absolute ton of information attached to the tweets, so I’m only keeping what I’ll use.</p>
+<pre class="r"><code>my_tweets &lt;- my_tweets_raw %&gt;%
+  select(status_id, created_at, text, is_retweet, reply_to_screen_name, favorite_count,
+         retweet_count, hashtags, mentions_screen_name)</code></pre>
+<p>The tweets come, by default, in UTC, so I’ll set them to my timezone, keep ones from 2018 onwards, and add some additonal date columns for use later on.</p>
+<pre class="r"><code>my_tweets &lt;- my_tweets %&gt;%
+  mutate(created_at = with_tz(created_at, tzone = &quot;America/Toronto&quot;)) %&gt;%
+  filter(created_at &gt;= &quot;2018-01-01&quot;) %&gt;%
+  mutate_at(vars(created_at), 
+            funs(date = date, 
+                 month = floor_date(., unit = &quot;month&quot;))) %&gt;%
+  mutate_at(vars(date, month), as.Date)</code></pre>
+<p>Finally, before looking at January’s tweets, I’m deriving the <code>tweet_type</code> variable so that information about retweets, replies, and original tweets is all in one variable. To keep it simple, if a tweet has data in the <code>reply_to_screen_name</code> field and it’s not tto <em>myself</em>, I’m counting it as a reply. I like to thread too much to assume a tweet replying to myself is actually part of a conversation with n &gt; 0 other people 😬.</p>
+<pre class="r"><code>library(forcats)
+
+my_tweets &lt;- my_tweets %&gt;%
+  mutate(tweet_type = case_when(is_retweet ~ &quot;Retweet&quot;,
+                                !is.na(reply_to_screen_name) &amp; reply_to_screen_name != &quot;sharlagelfand&quot; ~ &quot;Reply&quot;,
+                                TRUE ~ &quot;Original&quot;),
+         tweet_type = fct_relevel(as_factor(tweet_type),
+                                  c(&quot;Original&quot;, &quot;Reply&quot;, &quot;Retweet&quot;))) %&gt;%
+  select(-is_retweet)</code></pre>
+<p>Now it’s time to look at my tweets 🐦 for the last month! I will look at all of the rest later on, I promise.</p>
+<pre class="r"><code>january_tweets &lt;- my_tweets %&gt;%
+  filter(month == &quot;2019-01-01&quot;)</code></pre>
+<p>In January 2019, I tweeted a total of 396 times, including original tweets, replies, and retweets. The breakdown is as follows:</p>
+<pre class="r"><code>library(ggplot2)
+theme_set(theme_minimal())
+
+january_tweets %&gt;%
+  ggplot(aes(x = tweet_type,
+             fill = tweet_type)) +
+  geom_histogram(stat = &quot;count&quot;) + 
+  coord_flip() + 
+  theme(legend.position = &quot;none&quot;,
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10))</code></pre>
+<p><img src="/posts/2019/2019-01-31-january-2019-tweets_files/figure-html/type-breakdown-1.png" width="75%" /></p>
+<p>Broken down daily, it looks a little something like this…</p>
+<pre class="r"><code>january_tweets %&gt;%
+  ggplot(aes(x = date,
+             fill = tweet_type)) +
+  geom_histogram(binwidth = 1) + 
+  theme(legend.position = &quot;bottom&quot;,
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10),
+        legend.title = element_blank())</code></pre>
+<p><img src="/posts/2019/2019-01-31-january-2019-tweets_files/figure-html/january-breakdown-1.png" width="75%" /></p>
+<p>The conference ran from January 15 - 19 (if you include workshops and the tidyverse dev day, which I did), and you can see absolutely huge increases in tweeting during that time. Aaand I guess during the work week since I’ve been back 🙈.</p>
+<p>It wouldn’t be analyzing the self if I didn’t look at how ~popular I am, right? So let’s check how many likes and retweets I’ve gotten over the last month.</p>
+<pre class="r"><code>library(tidyr)
+library(stringr)
+
+january_tweets %&gt;%
+  filter(tweet_type != &quot;Retweet&quot;) %&gt;%
+  group_by(date) %&gt;%
+  summarise_at(vars(favorite_count, retweet_count), sum) %&gt;%
+  gather(measure, count, ends_with(&quot;count&quot;)) %&gt;%
+  mutate(measure = str_replace(measure, &quot;_count&quot;, &quot;&quot;)) %&gt;%
+  ggplot(aes(x = date,
+             y = count,
+             colour = measure)) + 
+  geom_line() + 
+  scale_x_discrete(&quot;Date of original tweet&quot;) + 
+  theme(legend.position = &quot;bottom&quot;,
+        axis.title.y = element_blank(),
+        axis.text = element_text(size = 10),
+        legend.title = element_blank())</code></pre>
+<p><img src="/posts/2019/2019-01-31-january-2019-tweets_files/figure-html/favourites-rts-1.png" width="75%" /></p>
+<p>I really am not normally this hype, I promise. I know what my top-favourited tweet is and it is absolutely absurd.</p>
+<pre class="r"><code>january_tweets %&gt;% 
+  filter(tweet_type != &quot;Retweet&quot;) %&gt;%
+  filter(favorite_count == max(favorite_count)) %&gt;%
+  pull(status_id) %&gt;%
+  blogdown::shortcode(&quot;tweet&quot;, .)</code></pre>
+{{% tweet "1082382542345588736" %}}
+<p>But, honestly, enough about me. As you can see, I replied to a lot of other people’s tweets. Especially during the conf. Especially to people <em>who were also at the conf</em>.</p>
+{{% tweet "1085999292039483399" %}}
+<p>But who have I been talking to most?</p>
+<pre class="r"><code>mentions &lt;- january_tweets %&gt;% 
+  filter(tweet_type != &quot;Retweet&quot;) %&gt;%
+  select(username = mentions_screen_name) %&gt;% 
+  unnest() %&gt;% 
+  filter(!is.na(username)) %&gt;% 
+  count(username, sort = TRUE)
+
+mentions %&gt;%
+  head(10) %&gt;%
+  ggplot(aes(x = fct_reorder(username, n),
+             y = n,
+             fill = username)) + 
+  labs(x = NULL, y = &quot;Mentions&quot;) +
+  geom_col() + 
+  coord_flip() + 
+  theme(legend.position = &quot;none&quot;,
+        axis.text = element_text(size = 10))</code></pre>
+<p><img src="/posts/2019/2019-01-31-january-2019-tweets_files/figure-html/top-mentions-1.png" width="75%" /></p>
+<p>Yep, checks out. Demetri snuck in, but every other person on that list was at the conference!</p>
+<p>For the top 8, let’s also get <em>their</em> tweets during January. You might think that 1000 each is overkill, but, uh, Mara is on the list.</p>
+<pre class="r"><code>library(purrr)
+
+friends_tweets &lt;- mentions %&gt;%
+  filter(row_number() &lt;= 8) %&gt;%
+  mutate(tweets = map(username, get_timeline, n = 1000)) %&gt;%
+  unnest() %&gt;%
+  filter(!is_retweet) %&gt;%
+  select(username, created_at, text)</code></pre>
+<p>(yes, top 10 to top 8, sorry Erin and Demetri – I want a 3x3 plot in like just a sec and I need to include myself OK sorry!)</p>
+<p>I am going to totally be lazy about timezones here. Let’s pretend everyone is in my timezone and look at their tweets for January.</p>
+<pre class="r"><code>friends_tweets &lt;- friends_tweets %&gt;%
+  mutate(created_at = with_tz(created_at, &quot;America/Toronto&quot;)) %&gt;%
+  filter(created_at &gt;= &quot;2019-01-01&quot; &amp; created_at &lt;= &quot;2019-01-31&quot;)</code></pre>
+<p>Every single one of these people likes and uses R. But would it really be a Twitter analysis if I didn’t do some text analysis? I’m going to do tf-idf (using Julia Silge and drob’s <a href="https://github.com/juliasilge/tidytext"><code>tidytext</code> package</a>), 1) because <a href="https://sharla.party/posts/horoscopes/">I have blogged about it before and can copy my old code</a>, but mostly 2) because it’s a fun way to look at differences in how people communicate.</p>
+<p>I’m throwing myself back in the mix (hence keeping getting the top 8 before) to see the words that each one of us uses the most, but everyone else uses… not so much.</p>
+<p>There’s a bunch of data cleaning here to replace quotes that aren’t quotes (i.e., ’ – Hadley was the most guilty of this), remove mentions of other people, and 😭 remove emojis. I know, I know. Another time.</p>
+<pre class="r"><code>library(tidytext)
+
+tidy_words &lt;- friends_tweets %&gt;%
+  select(username, text) %&gt;%
+  bind_rows(
+    january_tweets %&gt;%
+      select(text) %&gt;%
+      mutate(username = &quot;sharlagelfand&quot;)
+  ) %&gt;%
+  mutate(text = str_replace_all(text, &quot;’&quot;, &quot;&#39;&quot;)) %&gt;% 
+  unnest_tokens(word, text, token = &quot;tweets&quot;) %&gt;%
+  filter(!str_detect(word, &quot;^@&quot;),
+         !str_detect(word, &quot;[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+&quot;)) %&gt;%
+  anti_join(stop_words, by = &quot;word&quot;) %&gt;%
+  count(username, word)
+
+total_words &lt;- tidy_words %&gt;%
+  group_by(username) %&gt;%
+  summarize(total = sum(n))
+
+tf_idf_words &lt;- tidy_words %&gt;%
+  left_join(total_words, by = &quot;username&quot;) %&gt;%
+  bind_tf_idf(word, username, n) %&gt;%
+  group_by(username) %&gt;%
+  top_n(5, wt = tf_idf) %&gt;%
+  ungroup() 
+
+tf_idf_words %&gt;%
+  ggplot(aes(x = fct_reorder(word, tf_idf), 
+             y = tf_idf, 
+             fill = username)) +
+  geom_col() + 
+  labs(x = NULL, y = &quot;tf-idf&quot;) +
+  facet_wrap(~username, ncol = 3, scales = &quot;free&quot;) + 
+  coord_flip() + 
+  theme(axis.text.x = element_blank(),
+        legend.position = &quot;none&quot;,
+        axis.text = element_text(size = 10),
+        strip.text = element_text(size = 10))</code></pre>
+<p><img src="/posts/2019/2019-01-31-january-2019-tweets_files/figure-html/tf-idf-1.png" width="75%" /></p>
+<p>I absolutely <strong>love</strong> how you can see people’s personalities immediately.</p>
+<p><a href="https://twitter.com/beeonaposy">Caitlin</a> loves Texas and data science. <a href="https://twitter.com/brookLYNevery1">Brooke</a> had her epic <a href="https://twitter.com/brookLYNevery1/status/1083867336212393984">mug thread</a> and her <a href="https://twitter.com/brookLYNevery1/status/1085923987681624064">#rstudioconf drawings</a>. <a href="https://twitter.com/dataandme">Mara</a> is a mix of #SEO badness and umms.</p>
+<p><a href="https://twitter.com/hadleywickham">Hadley</a> is all business (I found out DSL = “Domain Specific Language” like, during the conference). <a href="https://twitter.com/jent103">Jen</a> finally got a flight home after being stuck in Austin for four extra days. <a href="https://twitter.com/malco_barrett">Malcolm</a> just <em>is</em> Epi (ok, sorry Malcolm, I know there are other aspects to your personality).</p>
+<p><a href="https://twitter.com/MilesMcBain">Miles</a> is, uh, Australian. I am vegan and annoying 😁. <a href="https://twitter.com/skyetetra">Jacqueline</a> has unlimited T-Mobile internet ™️ ™️ ™️ and gave a talk about Tensorflow. She even got the T-Mobile colours. By default! 💅</p>
+<p>I don’t think there’s much more I can do in this post that will have results as cool as quickly as that tf-idf analysis. So, I’ll just say that I’m excited to be 8.3% done my 2019 blogging commitment, and I’m going to try to tweet like, significantly less than 400 times in February. Because, let’s just look at the past year.</p>
+<pre class="r"><code>my_tweets %&gt;%
+  ggplot(aes(x = month,
+             fill = tweet_type)) + 
+  geom_histogram(stat = &quot;count&quot;) + 
+  theme(legend.position = &quot;bottom&quot;,
+        legend.title = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_text(size = 10))</code></pre>
+<p><img src="/posts/2019/2019-01-31-january-2019-tweets_files/figure-html/year-tweets-1.png" width="75%" /></p>
+<p>Woof 🐶</p>
