@@ -195,6 +195,8 @@ delays %>%
                        mean_vars = vars(min_delay, min_gap))
 ```
 
+because the tidyeval method for passing in a single variable to `group_by()` is `enquo()` and then `!!` as described in the first bit,
+
 and neither does this:
 
 ```{r}
@@ -203,7 +205,9 @@ delays %>%
                        mean_vars = min_delay)
 ```
 
-this is still something i'm working out myself. is this what methods are for? s3? i totally know about that. for now, i will be a heavy user of the `vars()`, even when it's overkill, a la
+because `summarise_at()` requires a `vars()` call (or one of the other options described in the `.vars` argument).
+
+this is still something i'm working out myself. how do i account for the possibility of a `vars()`, or just a variable on its own? is this what methods are for? s3? i totally know about that. for now, i will be a heavy user of the `vars()`, even when it's overkill, a la
 
 ```{r}
 delays %>%
