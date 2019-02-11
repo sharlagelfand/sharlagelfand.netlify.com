@@ -7,11 +7,8 @@
 {{ if eq .URL "/" }}
 <title>{{ .Site.Title }}</title>
 <meta property="og:title" content="{{ .Site.Title }}">
-<meta property="og:type" content="website">
 <meta property="description" content="{{ .Site.Params.description }}">
-<meta property="og:description" content="{{ .Site.Params.description }}">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://xvrdm.github.io/images/{{ .Site.Params.logo.url }}" >
 {{ else }}
 <title>{{ .Title }}{{ with .Params.subtitle }} - {{ . }} {{ end }} - {{ .Site.Title }}</title>
 <meta property="og:title" content="{{ .Title }} - {{ .Site.Title }}">
@@ -19,13 +16,11 @@
 
   {{ if .Params.twitterImg }}
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="http://xvrdm.github.io/{{ .Params.twitterImg }}" >
   {{ else }}
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:image" content="http://xvrdm.github.io/images/{{ .Site.Params.logo.url }}" >
   {{ end }}
   
-{{ $defaultDescription := printf "Article posted by %s, on %s" .Params.author (.Date.Format "Monday, January 2nd, 2006") }}
+{{ $defaultDescription := printf "Article posted on %s" (.Date.Format "Monday, January 2, 2006") }}
 <meta property="description" content="{{ .Description | default $defaultDescription }}">
 <meta property="og:description" content="{{ .Description | default $defaultDescription }}">
 {{ end }}
