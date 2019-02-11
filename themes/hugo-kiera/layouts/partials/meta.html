@@ -19,7 +19,7 @@
   <meta name="twitter:card" content="summary">
   {{ end }}
   
-{{ $defaultDescription := printf "Article posted on %s" (.Date.Format "Monday, January 2, 2006") }}
+{{ $defaultDescription := printf "%s" (.Date.Format "Monday, January 2, 2006") }}
 <meta property="description" content="{{ .Description | default $defaultDescription }}">
 <meta property="og:description" content="{{ .Description | default $defaultDescription }}">
 {{ end }}
