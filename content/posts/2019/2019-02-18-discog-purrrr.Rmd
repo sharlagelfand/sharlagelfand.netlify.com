@@ -1,8 +1,8 @@
 ---
-title: "February 2019: discog-purrrr"
+title: "February 2019: discog-purrr"
 author: 'Sharla Gelfand'
 date: '2019-02-18'
-slug: discog-purrrr
+slug: discog-purrr
 ---
 
 For February's #mememe2019 post, I thought it's be fun to look at my music collection. I painstakingly found the correct versions of all my records and tapes and entered them into [discogs](https://www.discogs.com/), *the* music database, for analysis.
