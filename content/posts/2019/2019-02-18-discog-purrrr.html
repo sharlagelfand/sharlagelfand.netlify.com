@@ -1,0 +1,248 @@
+---
+title: "February 2019: discog-purrrr"
+author: 'Sharla Gelfand'
+date: '2019-02-18'
+slug: discog-purrrr
+---
+
+
+
+<p>For February’s #mememe2019 post, I thought it’s be fun to look at my music collection. I painstakingly found the correct versions of all my records and tapes and entered them into <a href="https://www.discogs.com/">discogs</a>, <em>the</em> music database, for analysis.</p>
+<p>There is a discogs API, and an R package for it, too! The <a href="https://github.com/ewenme/discogger"><code>discogger</code> package</a> is created by <a href="https://twitter.com/ewen_">Ewen lastnameunknown</a> and provides a way to query your discogs collection via R.</p>
+<pre class="r"><code>library(discogger)
+library(dplyr)
+library(conflicted)
+
+conflict_prefer(&quot;filter&quot;, &quot;dplyr&quot;)</code></pre>
+<p>I’m querying my collection (you can see it <a href="https://www.discogs.com/user/sharlagelfand/collection">here</a>), and only keeping the <code>content</code> bit.</p>
+<pre class="r"><code>my_collection &lt;- discogs_user_collection(user_name = &quot;sharlagelfand&quot;)[[&quot;content&quot;]]</code></pre>
+<p>The result of the API call is a deeply nested list, starting with a list for each item in my collection (157 listed). Each of those lists then contains the data: <code>instance_id</code>, <code>rating</code>, <code>basic_information</code>, <code>folder_id</code>, <code>date_added</code>, and <code>id</code>.</p>
+<p>We can look at this using <code>str()</code>:</p>
+<pre class="r"><code>my_collection %&gt;%
+  head(2) %&gt;%
+  str(max.level = 2)</code></pre>
+<pre><code>## List of 2
+##  $ :List of 6
+##   ..$ instance_id      : int 354823933
+##   ..$ rating           : int 0
+##   ..$ basic_information:List of 11
+##   ..$ folder_id        : int 1
+##   ..$ date_added       : chr &quot;2019-02-16T17:48:59-08:00&quot;
+##   ..$ id               : int 7496378
+##  $ :List of 6
+##   ..$ instance_id      : int 354092601
+##   ..$ rating           : int 0
+##   ..$ basic_information:List of 11
+##   ..$ folder_id        : int 1
+##   ..$ date_added       : chr &quot;2019-02-13T14:13:11-08:00&quot;
+##   ..$ id               : int 4490852</code></pre>
+<p>Or we can look at some diagrams that I created to help me understand lists.</p>
+<p><img src="/images/discogger-purrr/initial_list.png" style="width:30.0%" /></p>
+<p>In all of the diagrams in this post, squares represent lists, with varying degrees of white -&gt; yellow -&gt; orange -&gt; red signifying the list depth, while the pill-shapes represent vectors. The pills are green, but if we run into any colour-blind issues: 1) my apologies, and 2) the shapes will always remain the same.</p>
+<p>Whether we look at the <code>str()</code> output or the diagram, we can see that <code>basic_information</code> is a list itself! This is just the beginning 😈</p>
+<p>Once we look at <code>basic_information</code>, we can see that it <em>also</em> contains a number of lists that go quite deep. Given the data, this nesting is not that surprising; a release can be on multiple labels and come from multiple artists. It does make it fun to work with, though! 🙃</p>
+<p><img src="/images/discogger-purrr/basic_information_list.png" style="width:65.0%" /></p>
+<pre class="r"><code>my_collection[[1]][[&quot;basic_information&quot;]] %&gt;%
+  str()</code></pre>
+<pre><code>## List of 11
+##  $ labels      :List of 1
+##   ..$ :List of 6
+##   .. ..$ name            : chr &quot;Tobi Records (2)&quot;
+##   .. ..$ entity_type     : chr &quot;1&quot;
+##   .. ..$ catno           : chr &quot;TOB-013&quot;
+##   .. ..$ resource_url    : chr &quot;https://api.discogs.com/labels/633407&quot;
+##   .. ..$ id              : int 633407
+##   .. ..$ entity_type_name: chr &quot;Label&quot;
+##  $ year        : int 2015
+##  $ master_url  : NULL
+##  $ artists     :List of 1
+##   ..$ :List of 7
+##   .. ..$ join        : chr &quot;&quot;
+##   .. ..$ name        : chr &quot;Mollot&quot;
+##   .. ..$ anv         : chr &quot;&quot;
+##   .. ..$ tracks      : chr &quot;&quot;
+##   .. ..$ role        : chr &quot;&quot;
+##   .. ..$ resource_url: chr &quot;https://api.discogs.com/artists/4619796&quot;
+##   .. ..$ id          : int 4619796
+##  $ id          : int 7496378
+##  $ thumb       : chr &quot;https://img.discogs.com/vEVegHrMNTsP6xG_K6OuFXz4h_U=/fit-in/150x150/filters:strip_icc():format(jpeg):mode_rgb()&quot;| __truncated__
+##  $ title       : chr &quot;Demo&quot;
+##  $ formats     :List of 1
+##   ..$ :List of 4
+##   .. ..$ descriptions:List of 1
+##   .. .. ..$ : chr &quot;Numbered&quot;
+##   .. ..$ text        : chr &quot;Black&quot;
+##   .. ..$ name        : chr &quot;Cassette&quot;
+##   .. ..$ qty         : chr &quot;1&quot;
+##  $ cover_image : chr &quot;https://img.discogs.com/EmbMh7vsElksjRgoXLFSuY1sjRQ=/fit-in/500x499/filters:strip_icc():format(jpeg):mode_rgb()&quot;| __truncated__
+##  $ resource_url: chr &quot;https://api.discogs.com/releases/7496378&quot;
+##  $ master_id   : int 0</code></pre>
+<p>For me, the first step is to extract the <code>basic_information</code> part only, and transpose it. <code>purrr:transpose()</code> “turns a list-of lists ‘inside-out.’” I want to turn the list inside-out so that it starts to look more like a data frame, with a list of <em>variables</em> rather than a list of <em>records</em> (like, observations – not 💿).</p>
+<pre class="r"><code>library(purrr)
+
+basic_information &lt;- my_collection %&gt;%
+  map(&quot;basic_information&quot;) %&gt;%
+  transpose()</code></pre>
+<p>Once we do that, the list looks totally different. Now we have a list that contains the <em>variables</em> from <code>basic_information</code>, and <em>each of those</em> is a list with 157 elements (lists) in them.</p>
+<pre class="r"><code>basic_information %&gt;%
+  str(max.level = 1)</code></pre>
+<pre><code>## List of 11
+##  $ labels      :List of 157
+##  $ year        :List of 157
+##  $ master_url  :List of 157
+##  $ artists     :List of 157
+##  $ id          :List of 157
+##  $ thumb       :List of 157
+##  $ title       :List of 157
+##  $ formats     :List of 157
+##  $ cover_image :List of 157
+##  $ resource_url:List of 157
+##  $ master_id   :List of 157</code></pre>
+<p>So,</p>
+<ol style="list-style-type: decimal">
+<li>Yes, this diagram is massive.</li>
+<li>No, the exact data is not always the same from diagram to diagram 💁</li>
+<li>An empty list means there is no data. Some variables have missing data, e.g. sometimes there isn’t <code>text</code> in <code>formats</code>. Sometimes <code>master_url</code> is missing, etc.</li>
+</ol>
+<p><img src="/images/discogger-purrr/basic_information_transpose.png" style="width:100.0%" /></p>
+<p>Now I have a wayyy better idea of what all that ugly <code>str()</code> output (omitted here) means. The deep nesting in <code>descriptions</code> is horrifying, but I’m confident in my ability to do it 💪.</p>
+<p>The next step is to make that list into a tibble, and only keep the variables I care about. Once we do that, it’s a little less hectic to look at.</p>
+<pre class="r"><code>basic_information_tibble &lt;- basic_information %&gt;%
+  as_tibble() %&gt;%
+  select(id, title, artists, formats)
+
+head(basic_information_tibble)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   id        title     artists    formats   
+##   &lt;list&gt;    &lt;list&gt;    &lt;list&gt;     &lt;list&gt;    
+## 1 &lt;int [1]&gt; &lt;chr [1]&gt; &lt;list [1]&gt; &lt;list [1]&gt;
+## 2 &lt;int [1]&gt; &lt;chr [1]&gt; &lt;list [1]&gt; &lt;list [1]&gt;
+## 3 &lt;int [1]&gt; &lt;chr [1]&gt; &lt;list [1]&gt; &lt;list [1]&gt;
+## 4 &lt;int [1]&gt; &lt;chr [1]&gt; &lt;list [1]&gt; &lt;list [1]&gt;
+## 5 &lt;int [1]&gt; &lt;chr [1]&gt; &lt;list [1]&gt; &lt;list [1]&gt;
+## 6 &lt;int [1]&gt; &lt;chr [1]&gt; &lt;list [1]&gt; &lt;list [1]&gt;</code></pre>
+<p>Did somebody say list-cols? 😋</p>
+<p><img src="/images/discogger-purrr/basic_information_tibble.png" style="width:80.0%" /></p>
+<p>The easiest thing to tackle next are the <code>id</code> and <code>title</code> columns. Every release has only one of each, so we can unlist these and turn the columns into… non-list-cols? reg-cols.</p>
+<pre class="r"><code>basic_information_id_title_unlist &lt;- basic_information_tibble %&gt;% 
+  mutate_at(vars(id, title), unlist)
+
+head(basic_information_id_title_unlist)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##        id title                             artists    formats   
+##     &lt;int&gt; &lt;chr&gt;                             &lt;list&gt;     &lt;list&gt;    
+## 1 7496378 Demo                              &lt;list [1]&gt; &lt;list [1]&gt;
+## 2 4490852 Observant Com El Mon Es Destrueix &lt;list [1]&gt; &lt;list [1]&gt;
+## 3 5556486 Fuck Off                          &lt;list [1]&gt; &lt;list [1]&gt;
+## 4 9827276 I                                 &lt;list [1]&gt; &lt;list [1]&gt;
+## 5 9769203 Oído Absoluto                     &lt;list [1]&gt; &lt;list [1]&gt;
+## 6 7237138 A Cat&#39;s Cause, No Dogs Problem    &lt;list [1]&gt; &lt;list [1]&gt;</code></pre>
+<p>(“sorry” about the third item – it’s a <a href="https://goodthrob.bandcamp.com/album/fuck-off">great record!</a>)</p>
+<p>I’ve coloured them in blue now, to indicate they’re no longer lists (not differentiating between integer and character, though).</p>
+<p><img src="/images/discogger-purrr/unlist_id_title.png" style="width:80.0%" /></p>
+<p>To make <code>artists</code> workable, I’m transposing it, just like we did with the original list.</p>
+<pre class="r"><code>basic_information_artists_transpose &lt;- basic_information_id_title_unlist %&gt;%
+  mutate(artists = map(artists, transpose))
+
+head(basic_information_artists_transpose)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##        id title                             artists    formats   
+##     &lt;int&gt; &lt;chr&gt;                             &lt;list&gt;     &lt;list&gt;    
+## 1 7496378 Demo                              &lt;list [7]&gt; &lt;list [1]&gt;
+## 2 4490852 Observant Com El Mon Es Destrueix &lt;list [7]&gt; &lt;list [1]&gt;
+## 3 5556486 Fuck Off                          &lt;list [7]&gt; &lt;list [1]&gt;
+## 4 9827276 I                                 &lt;list [7]&gt; &lt;list [1]&gt;
+## 5 9769203 Oído Absoluto                     &lt;list [7]&gt; &lt;list [1]&gt;
+## 6 7237138 A Cat&#39;s Cause, No Dogs Problem    &lt;list [7]&gt; &lt;list [1]&gt;</code></pre>
+<p>It looks a little different in the tibble printing, but tough to tell what’s going on. Instead of a list for each artist that contains <code>name</code>, <code>entity_type</code>, etc, now <em>each of those</em> are lists that contain information on each artist.</p>
+<p>So, if there are two artists on a release, their names will both appear under <code>name</code>, rather than having a list for each, and each with a <code>name</code> element.</p>
+<p><img src="/images/discogger-purrr/transpose_artists.png" style="width:80.0%" /></p>
+<p>The last column to work with is <code>formats</code>, arguably the ugliest one! I actually <em>don’t</em> want to transpose it, because <code>descriptions</code> is already in the format we want. If we transpose it, then it’ll turn <em>that</em> inside out, which is… not good. Believe me, I spent a while playing with it before I realized what was happening 🙈.</p>
+<p>We want to <em>unlist</em> <code>formats</code>, just like we did for <code>id</code> and <code>title</code>. The only difference is that we just want to remove the <em>first</em> listing hierarchy, so we’ll set <code>recursive = FALSE</code>.</p>
+<p>The reason that we can do this to <code>formats</code> is because it’s unnecessarily nested. Unlike <code>artists</code>, there are no cases where there’s more than one format attached to a release, so the nested list isn’t necessary.</p>
+<pre class="r"><code>basic_information_formats_unlist &lt;- basic_information_artists_transpose %&gt;%
+  mutate(formats = unlist(formats, recursive = FALSE))
+
+head(basic_information_formats_unlist)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##        id title                             artists    formats   
+##     &lt;int&gt; &lt;chr&gt;                             &lt;list&gt;     &lt;list&gt;    
+## 1 7496378 Demo                              &lt;list [7]&gt; &lt;list [4]&gt;
+## 2 4490852 Observant Com El Mon Es Destrueix &lt;list [7]&gt; &lt;list [3]&gt;
+## 3 5556486 Fuck Off                          &lt;list [7]&gt; &lt;list [3]&gt;
+## 4 9827276 I                                 &lt;list [7]&gt; &lt;list [3]&gt;
+## 5 9769203 Oído Absoluto                     &lt;list [7]&gt; &lt;list [3]&gt;
+## 6 7237138 A Cat&#39;s Cause, No Dogs Problem    &lt;list [7]&gt; &lt;list [3]&gt;</code></pre>
+<p>But just like for <code>artists</code>, now the actual elements are at the top level of the list, rather than being buried.</p>
+<p><img src="/images/discogger-purrr/unlist_formats.png" style="width:80.0%" /></p>
+<p>You thought we were done?! Ha! We still need to get information <em>out</em> of <code>artists</code> and <code>formats</code>.</p>
+<p>I want to get the <code>id</code> from <code>artists</code> so that (eventually), I can use the API again to get <em>even more</em> information about the artist.</p>
+<pre class="r"><code>basic_information_tidying &lt;- basic_information_formats_unlist %&gt;%
+  mutate(artists_id = map(artists, &quot;id&quot;)) %&gt;%
+  select(-artists)
+
+basic_information_tidying %&gt;%
+  head()</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##        id title                             formats    artists_id
+##     &lt;int&gt; &lt;chr&gt;                             &lt;list&gt;     &lt;list&gt;    
+## 1 7496378 Demo                              &lt;list [4]&gt; &lt;list [1]&gt;
+## 2 4490852 Observant Com El Mon Es Destrueix &lt;list [3]&gt; &lt;list [1]&gt;
+## 3 5556486 Fuck Off                          &lt;list [3]&gt; &lt;list [1]&gt;
+## 4 9827276 I                                 &lt;list [3]&gt; &lt;list [1]&gt;
+## 5 9769203 Oído Absoluto                     &lt;list [3]&gt; &lt;list [1]&gt;
+## 6 7237138 A Cat&#39;s Cause, No Dogs Problem    &lt;list [3]&gt; &lt;list [1]&gt;</code></pre>
+<p>But this isn’t quite it. <code>artists_id</code> is still a list of lists.</p>
+<pre class="r"><code>basic_information_tidying &lt;- basic_information_tidying %&gt;%
+  mutate(artists_id = map(artists_id, unlist))
+
+head(basic_information_tidying)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##        id title                             formats    artists_id
+##     &lt;int&gt; &lt;chr&gt;                             &lt;list&gt;     &lt;list&gt;    
+## 1 7496378 Demo                              &lt;list [4]&gt; &lt;int [1]&gt; 
+## 2 4490852 Observant Com El Mon Es Destrueix &lt;list [3]&gt; &lt;int [1]&gt; 
+## 3 5556486 Fuck Off                          &lt;list [3]&gt; &lt;int [1]&gt; 
+## 4 9827276 I                                 &lt;list [3]&gt; &lt;int [1]&gt; 
+## 5 9769203 Oído Absoluto                     &lt;list [3]&gt; &lt;int [1]&gt; 
+## 6 7237138 A Cat&#39;s Cause, No Dogs Problem    &lt;list [3]&gt; &lt;int [1]&gt;</code></pre>
+<p>Now it’s a list of integer vectors. This is, I think, the kind of “list-col” that I’m more familiar with. This is the lego-game-of-thrones-horse-on-a-balcony kind of list-col.</p>
+<p>I’ve tried to illustrate the difference here. The little circles mean it’s a character vector with two elements.</p>
+<p><img src="/images/discogger-purrr/map_artist_id.png" style="width:80.0%" /></p>
+<p>I also want the <code>name</code> and <code>descriptions</code> bits from <code>formats</code>.</p>
+<p><code>name</code> is really easy because it’s just a character vector, and never contains multiple elements.</p>
+<pre class="r"><code>basic_information_tidying &lt;- basic_information_tidying %&gt;%
+  mutate(format_name = map_chr(formats, &quot;name&quot;))
+
+head(basic_information_tidying)</code></pre>
+<pre><code>## # A tibble: 6 x 5
+##        id title                            formats   artists_id format_name
+##     &lt;int&gt; &lt;chr&gt;                            &lt;list&gt;    &lt;list&gt;     &lt;chr&gt;      
+## 1 7496378 Demo                             &lt;list [4… &lt;int [1]&gt;  Cassette   
+## 2 4490852 Observant Com El Mon Es Destrue… &lt;list [3… &lt;int [1]&gt;  Vinyl      
+## 3 5556486 Fuck Off                         &lt;list [3… &lt;int [1]&gt;  Vinyl      
+## 4 9827276 I                                &lt;list [3… &lt;int [1]&gt;  Vinyl      
+## 5 9769203 Oído Absoluto                    &lt;list [3… &lt;int [1]&gt;  Vinyl      
+## 6 7237138 A Cat&#39;s Cause, No Dogs Problem   &lt;list [3… &lt;int [1]&gt;  Vinyl</code></pre>
+<p><img src="/images/discogger-purrr/map_format_name.png" style="width:55.0%" /></p>
+<p>Finally, <code>descriptions</code>, for all the headache it’s been, is the exact same to extract as <code>artists_id</code>. I’ve set <code>.default = FALSE</code> in case any are missing. <code>NA</code>s are a lot easier to work with than <code>NULL</code>s later on (endless thank you to Jenny Bryan, not only for absolutely everything I know about lists and purrr, but for telling me about this argument).</p>
+<pre class="r"><code>basic_information_tidying &lt;- basic_information_tidying %&gt;%
+  mutate(format_description = map(formats, &quot;descriptions&quot;, .default = NA),
+         format_description = map(format_description, unlist))</code></pre>
+<p><img src="/images/discogger-purrr/map_format_description.png" style="width:85.0%" /></p>
+<p>With a little renaming and reordering, our final dataset looks like this:</p>
+<pre class="r"><code>basic_information_tidy &lt;- basic_information_tidying %&gt;%
+    select(release_id = id, title, artists_id, format_description, format_name)
+
+head(basic_information_tidy)</code></pre>
+<pre><code>## # A tibble: 6 x 5
+##   release_id title                 artists_id format_descripti… format_name
+##        &lt;int&gt; &lt;chr&gt;                 &lt;list&gt;     &lt;list&gt;            &lt;chr&gt;      
+## 1    7496378 Demo                  &lt;int [1]&gt;  &lt;chr [1]&gt;         Cassette   
+## 2    4490852 Observant Com El Mon… &lt;int [1]&gt;  &lt;chr [1]&gt;         Vinyl      
+## 3    5556486 Fuck Off              &lt;int [1]&gt;  &lt;chr [1]&gt;         Vinyl      
+## 4    9827276 I                     &lt;int [1]&gt;  &lt;chr [3]&gt;         Vinyl      
+## 5    9769203 Oído Absoluto         &lt;int [1]&gt;  &lt;chr [2]&gt;         Vinyl      
+## 6    7237138 A Cat&#39;s Cause, No Do… &lt;int [1]&gt;  &lt;chr [2]&gt;         Vinyl</code></pre>
+<p><img src="/images/discogger-purrr/collection_tidy.png" style="width:70.0%" /></p>
+<p>What are we going to do with it? That’s a topic for another post 👋.</p>
