@@ -38,7 +38,7 @@ conflict_prefer(&quot;filter&quot;, &quot;dplyr&quot;)</code></pre>
 ##   ..$ id               : int 4490852</code></pre>
 <p>Or we can look at some diagrams that I created to help me understand lists.</p>
 <p><img src="/images/discogger-purrr/initial_list.png" style="width:30.0%" /></p>
-<p>In all of the diagrams in this post, squares represent lists, with varying degrees of white -&gt; yellow -&gt; orange -&gt; red signifying the list depth, while the pill-shapes represent vectors. The pills are green, but if we run into any colour-blind issues: 1) my apologies, and 2) the shapes will always remain the same.</p>
+<p>In all of the diagrams in this post, squares represent lists, with varying degrees of white -&gt; yellow -&gt; orange -&gt; red signifying the list depth, while the pill-shapes represent vectors. The pills are green, but if we run into any colour-blind issues: 1) my apologies, and 2) the shapes will always remain the same. They were all made using <a href="https://www.lucidchart.com/">LucidChart</a>.</p>
 <p>Whether we look at the <code>str()</code> output or the diagram, we can see that <code>basic_information</code> is a list itself! This is just the beginning 😈</p>
 <p>Once we look at <code>basic_information</code>, we can see that it <em>also</em> contains a number of lists that go quite deep. Given the data, this nesting is not that surprising; a release can be on multiple labels and come from multiple artists. It does make it fun to work with, though! 🙃</p>
 <p><img src="/images/discogger-purrr/basic_information_list.png" style="width:65.0%" /></p>

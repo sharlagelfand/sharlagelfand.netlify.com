@@ -37,7 +37,7 @@ Or we can look at some diagrams that I created to help me understand lists.
 
 ![](/images/discogger-purrr/initial_list.png){width=30%}
 
-In all of the diagrams in this post, squares represent lists, with varying degrees of white -> yellow -> orange -> red signifying the list depth, while the pill-shapes represent vectors. The pills are green, but if we run into any colour-blind issues: 1) my apologies, and 2) the shapes will always remain the same.
+In all of the diagrams in this post, squares represent lists, with varying degrees of white -> yellow -> orange -> red signifying the list depth, while the pill-shapes represent vectors. The pills are green, but if we run into any colour-blind issues: 1) my apologies, and 2) the shapes will always remain the same. They were all made using [LucidChart](https://www.lucidchart.com/).
 
 Whether we look at the `str()` output or the diagram, we can see that `basic_information` is a list itself! This is just the beginning `r emo::ji("smiling_imp")`
 
