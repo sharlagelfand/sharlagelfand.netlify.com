@@ -198,6 +198,10 @@ basic_information_tidy <- basic_information_tidying %>%
 head(basic_information_tidy)
 ```
 
+```{r, include=FALSE}
+saveRDS(basic_information_tidy, here::here("static", "data", "discogger", "basic_information_tidy.rds"))
+```
+
 ![](/images/discogger-purrr/collection_tidy.png){width=70%}
 
 What are we going to do with it? That's a topic for another post `r emo::ji("wave")`.
