@@ -21,7 +21,7 @@ Luckily, [Toronto Open Data](https://www.toronto.ca/city-government/data-researc
 
 Let's look at the data.
 
-(A small disclaimer, and my apologies to the TTC and Toronto Open Data -- I messed with this data. Just a bit. Some of the errors are yours, some are mine. You can see the messing around I did [here]()).
+(A small disclaimer, and my apologies to the TTC and Toronto Open Data -- I messed with this data. Just a bit. Some of the errors are yours, some are mine. You can see the messing around I did [here](https://github.com/sharlagelfand/sharlagelfand.netlify.com/blob/master/content/posts/2019/2019-03-05-new-data-strategies.Rmd#L53)).
 
 ```{r, include = FALSE}
 set.seed(12345)
