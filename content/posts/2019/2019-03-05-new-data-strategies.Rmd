@@ -5,8 +5,8 @@ date: '2019-03-05'
 slug: new-data-strategies
 ---
 
-```{r setup, include=FALSE, warning=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
 ```
 
 (This post is a basically a blog-replicate of a talk I gave at the R-Ladies Toronto + GTA R User Group kickoff, called ["Opinionated Strategies for Uncharted Territories"](https://sharla.party/talks/rladies-rug-kickoff.html#1) -- if you saw that, this is old news `r emo::ji("nail_care")`)
