@@ -1,0 +1,382 @@
+---
+title: "Strategies for working with new data"
+author: 'Sharla Gelfand'
+date: '2019-03-05'
+slug: new-data-strategies
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+(This post is a basically a blog-replicate of a talk I gave at the R-Ladies Toronto + GTA R User Group kickoff, called ["Opinionated Strategies for Uncharted Territories"](https://sharla.party/talks/rladies-rug-kickoff.html#1) -- if you saw that, this is old news `r emo::ji("nail_care")`)
+
+A few weeks ago the TTC launched a new campaign around *not* going onto the tracks to retrieve dropped items -- "it's not worth your life." Pretty reasonable, right?
+
+This came along with some press saying that unauthorized people at the track level caused 26 hours of delays on the TTC last year (this includes people going onto tracks to get their belongs, people sneaking into tunnels, etc. Probably not when people drive into tunnels).
+
+I was curious to see how this varied from line to line, what are the most common stations where people go onto the tracks (!), and what the other causes of delay were.
+
+Luckily, [Toronto Open Data](https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-catalogue/transportation/#917dd033-1fe5-4ba8-04ca-f683eec89761) releases TTC delays and has all of the 2018 delays. My goal is to answer a few of these questions about TTC delays, and to showcase some strategies for working with a new data set. 
+
+Let's look at the data.
+
+(A small disclaimer, and my apologies to the TTC and Toronto Open Data -- I messed with this data. Just a bit. Some of the errors are yours, some are mine. You can see the messing around I did [here]()).
+
+```{r, include = FALSE}
+set.seed(12345)
+library(dplyr)
+library(ggplot2)
+
+theme_set(theme_minimal() + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()))
+
+delays_clean <- fs::dir_ls(here::here("static", "data", "ttc-delays", "delays")) %>%
+  purrr::map_dfr(readxl::read_excel) %>%
+  janitor::clean_names()
+
+delay_codes <- readxl::read_excel(here::here("static", "data", "ttc-delays", "Subway & SRT Log Codes.xlsx")) %>%
+  janitor::clean_names()
+
+delay_codes <- delay_codes %>%
+  select(code = sub_rmenu_code, description = code_description_3) %>%
+  bind_rows(
+    delay_codes %>%
+      select(code = srt_rmenu_code,
+             description = code_description_7)
+  ) %>%
+  filter(!is.na(code))
+
+delays_clean <- delays_clean %>%
+  left_join(delay_codes) %>%
+  select(date, time, station, code, description, min_delay, bound, line)
+
+delays <- delays_clean %>%
+  mutate(min_delay = ifelse(row_number() %in% sample(1:nrow(delays_clean), nrow(delays_clean)*0.05), NA_integer_, min_delay),
+         date = as.Date(date)) %>%
+  filter(!(line %in% c("BLOOR DANFORTH LINES", "YONGE UNIVERSITY SERVI")))
+``` 
+
+```{r}
+delays
+```
+
+Looks good! 
+
+Now, I want to look at the top 5 causes for delay along each line (YU, BD, SHP, and SRT), and see the total delays they caused in 2018. `min_delay` shows the delay time, in minutes, so we can use that.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+delays %>%
+  group_by(line, code) %>%
+  summarise(delays = sum(min_delay)) %>%
+  arrange(-delays) %>%
+  slice(1:5) %>%
+  ggplot(aes(x = code,
+             y = delays)) +
+  geom_col() + 
+  facet_wrap(vars(line), 
+             scales = "free_y",
+             nrow = 4) +
+  coord_flip()
+```
+
+So, this is definitely not what I expected, nor what the dataset's documentation says to expect (that the line should be one of YU, BD, SHP, and SRT).
+
+There are a bunch of "other" "lines" with varying amounts of data and definitely "line-ness" in general -- 16 MCCOWAN is not a subway line and "YU/BD" appears in various spellings (probably for delays at Yonge, St. George, and Spadina stations?).
+
+So let's just focus on the actual lines.
+
+```{r}
+delays %>%
+  filter(line %in% c("BD", "YU", 
+                     "SHP", "SRT")) %>% 
+  group_by(line, description) %>%
+  summarise(delays = sum(min_delay)) %>%
+  arrange(-delays) %>%
+  slice(1:5) %>%
+  ggplot(aes(x = description,
+             y = delays)) +
+  geom_col() + 
+  facet_wrap(vars(line), 
+             scales = "free_x",
+             nrow = 1) +
+  coord_flip() 
+```
+
+This is now, apparently, the top 5 causes for delay on each line. We see some interesting things here that are more popular than I'd have thought -- "Bomb Threat", "Suspicious Package", "Force Majeure" (i.e., a force of nature, absolving the TTC of responsibility) rank pretty high.
+
+But no where is "Unauthorized at Track Level"! So let's focus on that.
+
+```{r}
+delays %>%
+  filter(description == "Unauthorized at Track Level") %>%
+  group_by(line) %>%
+  summarise(delays = sum(min_delay))
+```
+
+You might be familiar with what's happening here -- there are `NA` values in the data, which causes the `sum` to be `NA`, but it has an easy fix!
+
+```{r}
+delays %>%
+  filter(description == "Unauthorized at Track Level") %>%
+  group_by(line) %>%
+  summarise(delays = sum(min_delay, na.rm = TRUE))
+```
+
+This also affects our first couple of plots, which showed the top 5 delays for each line -- any delay code that has an `NA` value therefore has a total delay of `NA`, and wouldn't have made the cut when we ranked the lines by delay; so even if it *was* the top delay, it would be missing.
+
+So, I want to talk about some strategies for avoiding this. Sure, it's not that bad to have to go back and add in the `na.rm = TRUE`, or to filter your data and ensure consistent coding, but it would be really nice to *know* that you have to do this up front. It'd also be nice to know *what* you have to do right away, and not rely on "doing something with that variable" to notice the mistake.
+
+# Visual Summaries
+
+The first strategy I want to talk about is simple, but really powerful, and that's *getting a visual summary of your data*. I want to be able to learn as much about my data, its structure and its attributes, as fast as possible.
+
+## `visdat` package
+
+A great way to get a visual overview of your data structure is through the [`visdat` package](https://github.com/ropensci/visdat), created by [Nick Tierney](https://www.njtierney.com/). This package allows you to "get a look at the data" by visualizing the data frame and any missingness.
+
+```{r}
+library(visdat)
+
+vis_dat(delays)
+```
+
+By doing this, we learn a bit about our data that *wasn't* apparent just from looking at the first 10 lines. It shows us the variable types, and any missingness.
+
+* Sometimes the `code` doesn't have a corresponding `description`
+* Sometimes `bound` and `line` are missing
+* Sometimes `min_delay` is missing!
+
+And if we want to get a better handle on what percent of our data is missing, we can use `vis_miss()`.
+
+```{r}
+vis_miss(delays)
+```
+
+This actually reports *what percent* of data is missing, both for each variable and overall. For example, the code's `description` is missing about 2% of the time, the actual delay time (`min_delay`) is missing 5% of the time, and `bound` is missing almost 25% of the time!
+
+Just doing this can spark some questions that we might not have had before:
+
+* When is `description` missing? Are there specific `code`s that just don't have a corresponding description? Was the `code` just entered incorrectly, and should be recoded to match an existing code?
+* Why is the `min_delay` missing?
+* What does it *mean* for `bound` to be missing? Is it that the delay was in both directions? Do certain types of delays not have a `bound`? 
+
+And by following up on these questions, either by exploring the data or *asking people for the answers*, we can learn a ton about TTC delays and about this data set.
+
+Doing this also gives us the knowledge that *sometimes `min_delay` is missing*, and we will need to handle that properly in any calculations with it!
+
+## Variable summaries
+
+The next thing I'd probably want to do is understand the different attributes of each variable, the values it can take on, etc. 
+
+One of the most classic ways to do this is by using the `summary()` function, e.g.
+
+```{r}
+summary(delays[["min_delay"]])
+```
+
+which tells us a bit about the distribution of the data, and how many `NA`s there are,
+
+or,
+
+```{r}
+summary(delays[["line"]])
+```
+
+which tells you absolutely nothing.
+
+`summary()`, in all its generality-glory, works on a ton of different classes of objects. Unfortunately it is in varying utility -- for a numeric vector, you get a lot of information. For a character vector, you get nothing useful.
+
+It's also annoying to go variable-by-variable. Sure, you can use `summary()` on a whole data frame,
+
+```{r}
+summary(delays)
+```
+
+but this isn't a great way to visualize the information, with varying degrees of usefulness and all jumbled up.
+
+## `skimr` package
+
+The [`skimr` package](https://github.com/ropensci/skimr), maintained by [Elin Waring](https://elinwaring.org/) and [Michael Quinn](http://michaelquinn32.github.io/), is a great solution to this. It's designed to show summary statistics that you can quickly *skim* to understand your data. 
+
+`skimr` also conforms to something called the "Principle of Least Surprise", which I thought was really interesting. It's a concept from UI and software design that basically says the behaviour of something shouldn't surprise a user, and that the design (of the UI or software) should match the user's experience, expectations, and mental models.
+
+I (and obviously the creators of `skimr`) think this applies to data so nicely. The **data** should match your experience, expectations, and mental models. And if it doesn't, you should find out quickly!
+
+The `skim()` function shows summary statistics for each variable, separated by variable class (e.g. all character variables together, all integers together, etc).
+
+```{r}
+library(skimr)
+
+delays %>%
+  skim()
+```
+
+For all variables, it tells you how many are `missing`, how many are `complete` (i.e., not missing), and the total count, `n`.
+
+For character variables, it shows the `min` and `max` length of non-empty strings in that variable, the number of empty strings (i.e., `""` -- this is great if you might have some things that should be `NA` masquerading as empty strings!), and the number of unique strings.
+
+For numeric variables, it shows the mean, sd, some percentiles, and a tiny in-line histogram(!).
+
+For date variables, it shows the min, max, median, and number of unique dates.
+
+Again, we learn a *ton* here that we didn't get from the first few rows of data, or from an initial `summary()`:
+
+* There are 6 unique values for `bound` (I would have expected 4; N, S, E, W).
+* There are 184 different codes but only 132 descriptions (Do some codes share descriptions? Were some codes mistyped?)
+* There are 13(!) lines!!
+* There are 201 stations (I googled -- apparently there's actually only 75?)
+* `min_delay` goes from 0 (good) to over 500
+
+While I'm pretty surprised by the results, I think this is a *much* friendlier way to find some of these things out than by trying to do an analysis and getting weird results and *then* having to track down how things work (and adjust accordingly).
+
+I also think this kind of visual summary has an added bonus: if you don't *have* any expectations or mental models, it's a fast way to get one.
+
+`skimr` provides a really good jumping-off point for other things to explore to get to know the data. For example, I want to know about the different values for `bound`, and how those vary by `line`.
+
+`skimr` works really nicely with grouped data frames, showing a summary *for each group*. It also has much nicer display for factors than for characters (i.e., showing the top factor levels) and can skim by a selected variable only.
+
+So, we can see summary statistics *only* for the `bound` variable, but *within* each of value of `line`. Let's focus on the "main" lines.
+
+```{r}
+delays %>%
+  filter(line %in% c("BD", "YU", "SHP", "SRT")) %>%
+  mutate(bound = as.factor(bound)) %>%
+  group_by(line) %>%
+  skim(bound)
+```
+
+Some irregularities already pop up - for example, BD is an East/West running line, but there are a total of 10 delays on this line in the direction "North" bound. Similar for YU -- it runs North/South, but there are 14 delays running "East" bound. Maybe `bound` was just coded incorrectly, but I'd be curious to see what *stations* these delays are at. For example, if they're at Bloor/Yonge station, then maybe the `line` was coded incorrectly.
+
+These are little inconsistencies that you can totally go down the rabbit-hole on, but are useful to at least *know* about in case they cause inconsistencies in analysis later on.
+
+So, overall, visual summaries are a really good way to get a feel for your data, verify or build a mental model, and identify areas for further investigation.
+
+# Opinionated Strategies
+
+Visual summaries have a pretty important downfall: they rely on you, there, looking at the data. They rely on you knowing what you're looking for, remembering what you're looking for (or writing lots of documentation and comments), they rely on interactive coding.
+
+In addition (or instead of) visual summaries, I'd suggest *codifying your assumptions*. This is where the "opinionated" bit comes in. Codifying your assumptions requires that your assumptions be explicitly spelled out, and ideally, that your code fails spectacularly and loudly if they're *not* met. 
+
+I think that this is better than the alternative case where they're not met, but everything still looks "ok", and bad results can go forward if they don't raise any red flags.
+
+## `assertr` package
+
+The [`assertr` package](https://github.com/ropensci/assertr), created by [Tony Fischetti](https://twitter.com/tonyfischetti), is designed to help verify assumptions about data *early on* in a data pipeline. It forces you to explicitly outline any assumptions about your data, and then alerts you of any deviations from those assumptions.
+
+The `assert()` function is used to assert assumptions about columns of a data set. By default, it *throws an error* if the assumptions are not met. If they are met, then the original data frame is returned.
+
+For example, let's say we want to assert that the column `line` has to be one of BD, YU, SHP, SRT.
+
+```{r, error=TRUE}
+library(assertr)
+
+delays %>%
+  assert(in_set("YU", "BD", "SHP", "SRT"), line)
+```
+
+Because this assumption isn't met, `assert` returns an error that the assertion was violated 380 times, and shows the first few lines where this is true (with `index` as the row number), as well as the value that violates that assumption (in the examples it gives, the value "YU/BD" is outside of the set we named).
+
+`assert` works using functions called **predicates**. A predicate (apparently a kindergarten-level grammar concept that I've forgotten) says something about the properties or actions of a subject. In this case, the predicate `in_set("YU", "BD", "SHP", "SRT")` says that the subject, `line`, takes on one of the values of YU, BD, SHP, and SRT. 
+
+There are some other useful predicates built into `assert`. For example, `within_bounds()` says that a numeric variable can only take on values in the specified bounds. 
+
+If I want to assert the assumption that `min_delay` has to be a non-negative number, then I would codify this as
+
+```{r, error=TRUE}
+delays %>%
+  assert(within_bounds(0, Inf), min_delay)
+```
+
+And this is actually true, so what we get is the original data set! By default, `within_bounds()` allows `NA` values, so I should be careful and explicit that my assumption is that `min_delay` is a positive number *with no missing values*. To do that, I can use set `allow.na = FALSE` in `within_bounds()`.
+
+Or, I can use the `not_na()` predicate, which specifically checks that each element is not `NA`!
+
+```{r, error=TRUE}
+delays %>%
+  assert(not_na, min_delay)
+```
+
+And now this fails, because there *are* `NA` values.
+
+The other built-in predicate is `is_uniq()`, which checks whether each element of a variable appears only once (this can be useful for e.g. IDs in a data set). You can also include your own predicate, by writing a function that returns TRUE/FALSE.
+
+The `assertr` functions are designed to be piped together (i.e., all of your assumptions in a single pipe), but require some modification. The default behaviour is for the pipe to break after the first error, e.g.
+
+```{r, error=TRUE}
+delays %>% 
+  assert(in_set("YU", "BD", "SHP", "SRT"), line) %>%
+  assert(within_bounds(0, Inf), min_delay) %>%
+  assert(not_na, min_delay)
+```
+
+only tells us that `line` violated the `in_set()` assumption, and nothing about `min_delay` -- even though we know the `not_na` assumption isn't met.
+
+To remedy this, I use `chain_start()` at the beginning of the chain of assumptions, and `chain_end()` at the end. This overwrites the default behaviour of `assert` (to stop after the first failure) and instead shows information about all errors. I'm using the `error_stop` argument here too, otherwise it literally prints *all of the errors* and that makes this post very, very long.
+
+```{r, error=TRUE}
+delays %>% 
+  chain_start() %>%
+  assert(in_set("YU", "BD", "SHP", "SRT"), line) %>%
+  assert(within_bounds(0, Inf), min_delay) %>%
+  assert(not_na, min_delay) %>%
+  chain_end(error_fun = error_stop)
+```
+
+There are definitely more functions in `assertr` -- `assert` only allows you to make assumptions about columns. It may be useful to make assertions about the overall data structure (using `verify()`), about values of a variable in relation to its mean (using `insist()`), or e.g. about attributes of a row overall (using `assert_rows()`).
+
+In the end, though, a huge plus of `assertr` functions is that when all of the assumptions are satisfied, *the result is just the original data set*. This allows you to check assumptions *and* do calculations all in one go.
+
+Let's say we have a cleaned version of `delays`, where all `NA` values of `min_delay` have been dealt with and any "non-stations" are removed.
+
+Because all of the assumptions are met, the result from the chain of assumptions is just *the original data set*, and we can aggregate and plot as we wish!
+
+```{r, include=FALSE}
+delays_clean <- delays_clean %>%
+  mutate(line_clean = case_when(line %in% c("BD", "B/D", 
+                                            "BLOOR DANFORTH LINES") ~ "BD",
+                                line %in% c("YU", "YUS",
+                                            "YONGE UNIVERSITY SERVI") ~ "YU",
+                                line == "SHP" ~ "SHP",
+                                line == "SRT" ~ "SRT")) %>%
+  filter(!is.na(line_clean),
+         !is.na(min_delay)) %>%
+  select(-line, line = line_clean)
+```
+
+```{r}
+delays_clean %>% 
+  chain_start() %>%
+  assert(in_set("YU", "BD", "SHP", "SRT"), line) %>%
+  assert(within_bounds(0, Inf), min_delay) %>%
+  assert(not_na, min_delay) %>%
+  chain_end() %>%
+  group_by(line, description) %>%
+  summarise(delays = sum(min_delay)) %>%
+  arrange(-delays) %>%
+  slice(1:5) %>%
+  ggplot(aes(x = description,
+             y = delays)) +
+  geom_col() + 
+  facet_wrap(vars(line), 
+             scales = "fixed",
+             nrow = 1) +
+  coord_flip()
+```
+
+So now, for real, we see the top 5 causes for delays on the TTC subway and SRT in 2018 -- "Force Majeure" is less common, and we see some rough, but true causes of TTC delays -- disorderly patron, ill customers, the ATC project, etc.
+
+Interestingly enough, "Unauthorized at Track Level" still doesn't crack the top 5 `r emo::ji("thinking")`
+
+# The end!
+
+I hope I've managed to instill some good approaches around working with a new data set, specifically:
+
+* Be weary of diving right into results
+* Efficiently visualize your data to verify or build mental models
+* Be liberal with rabbit holes, investigations, and edge cases
+* Codify your assumptions so that it is them, not you, who fail spectacularly
+
+Bye bye!
