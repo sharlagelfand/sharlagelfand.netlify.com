@@ -1,0 +1,60 @@
+---
+title: '#chirunconf'
+date: '2019-03-11'
+slug: chirunconf
+---
+
+I'm in the airport on my way home from the ~first ever~ [Chicago R Unconference](https://chirunconf.github.io/), and it seems like there's no better time to write about it! `r emo::ji("airplane")` This was my first ever unconference and let me tell you: the hype is real. They are a blast. 
+
+I was lucky enough to be able to travel to a different country and `r emo::ji("musical_note")` hop off the plane at MDW `r emo::ji("musical_note")` in order to hang out and code with old friends and new ones too (we're friends now, sorry, I don't make the rules `r emo::ji("information_desk_person")`).
+
+One of the main reasons I wanted to attend an unconf (besides getting to hang out with my friends `r emo::ji("dancers")`) was to understand *how* exactly a project goes from inception to reality in two days. 
+
+In typical unconf fashion, there was a lot of discussion in GitHub issues on potential projects. I was interested in pretty much all of them and nervous to have to choose! But when the time came (aka after we'd had breakfast and done icebreakers), the idea that I felt most ~connected to (that was actually happening) was working on the unconf toolkit. All of the helpful discussion on the GitHub issue really guided what the project would look like, and superwoman unconf organizer [Angela Li](https://twitter.com/CivicAngela) knew what she wanted us to focus on and we divvied up the work appropriately. With two of the Chicago unconf organizers (Angela and [Emily Riederer](https://twitter.com/EmilyRiederer/)) and an Uncoast Unconf organizer ([Sam Tyner](https://twitter.com/sctyner/)) on our side, we had a lot of unconf knowledge and direction.
+
+So that's how it got started.
+
+How did it become reality?
+
+Lots and lots of work, maniacal coding sprints, posting on the repo on Saturday night long after the work stopped and before we went to bed, quick sketching solutions and throwing them together, working to the wire, and generally leaning a *lot* on the awesome tools that **other people** had already created.
+
+Over the course of two days, a whole table of us worked on an [Unconf Toolbox](https://github.com/unconf-toolbox/) -- a bunch of different components designed to make running your own unconf easier. This included:
+
+* A [Chicago R Unconference twitter bot](https://twitter.com/chirunconf), created by Sam Tyner, who went from "Does anyone know how twitter bots work?" to a launched bot in like, an hour (with awesome instructions on how to build your own [here](https://github.com/unconf-toolbox/unconf-bot))
+* A [book with information on how to run your own unconf](https://github.com/unconf-toolbox/unconf-guide) (e.g. what physical and online infra you need to think about, funding, applications, peoples' needs to consider, how to run the actual unconf), created by Angela Li and Sam Tyner
+* A [website skeleton for your own unconference](https://github.com/unconf-toolbox/unconf-website), created by Angela Li
+* [Unconference project management tools to help track and monitor tasks](https://github.com/unconf-toolbox/unconf-tasks), created by Sam Tyner
+* [Infrastructure to set up email communications with unconference participants](https://github.com/unconf-toolbox/unconf-comm), created by Emily Riederer
+* A [shiny app where people can apply to unconfs](https://github.com/unconf-toolbox/Shiny_form), and where the organizers can organize and rate the applications, created by [Sydney Purdue](https://twitter.com/Sydney_NotAUS) and Natalie Jorion
+* A [shiny dashboard for monitoring available GitHub issues and celebrating closed ones](https://github.com/unconf-toolbox/unconfissues), created by myself and [Eric Nantz](https://twitter.com/thercast)
+
+`r emo::ji("sweat_smile")` y'all that is a LOT!
+
+The dashboard Eric and I created shows available and closed issues in a baseline repo (e.g. the chirunconf repo) and has the ability to add other repos using an unconf tag. I was especially inspired by tidyverse dev day on this, because there were issues in so many different places and it was a little difficult to see what was available (and what was taken within the first 10 minutes!). You can explore it for yourself [here](https://rpodcast.shinyapps.io/unconfissues/).
+
+Working on this project exposed me to *so many* new things all at once. Here are some of the things used in our app that I'd never used before:
+
+* shiny modules (finally)!
+* ThinkR's [`golem` package](https://github.com/ThinkR-open/golem) for creating robusts shiny apps
+* Emily Riederer's [`projmgr` package](https://emilyriederer.github.io/projmgr/), which made pulling issues from GitHub a breeze `r emo::ji("wind")`
+* [`bs4dash`](https://github.com/RinteRface/bs4Dash) (y'all you can make shiny apps that DON'T ALL LOOK THE SAME. I never knew!)
+
+And I also got totally choked up on bizarre things like
+
+* writing regex
+* a strange obsession with having fewer dependencies in our app (really should have reviewed Jim Hester's ["it depends" talk](https://speakerdeck.com/jimhester/it-depends) from RStudio Conf)
+
+I feel like our group accomplished a **ton** at the unconf. But the real secret is, I think, that while some of the work is a reality, it's definitely not done. We still need a lot, like
+
+* regular dashboard refreshes
+* setup instructions (i.e., so someone else can actually use this app for their own unconf)
+* persistent storage (so that when you add new repos to track, they don't go away on refresh!)
+* more information on closed issues, celebrating contributors, metrics on how much everyone accomplished, etc
+
+I'm very, very proud of what we did, and I feel like the veil of intimidation has been lifted -- the goal of every unconf project is not to have a brand new, blue sky project on CRAN at the end of two days. That's like, not what happens. And it's good! It's fine! We all did some `r emo::ji("bomb")` work, contributed to the R ecosystem, and built a stronger community, bit by bit. 
+
+There is also so much work left to be done, projects that need continued contributions, and issues that didn't get worked on at all. If you're interested in contributing to open source in R, I think the output and leftover issues from an unconf are a great place to look for inspiration. You can see all of the chirunconf19 issues [here](https://github.com/chirunconf/chiruncon19).
+
+Besides all the technical stuff, it was so, so rewarding and fun to be able to hang out with R people in a smaller setting, where you can have longer conversations with more people rather than running around saying hi to people for 5 minutes at a time at a conference. I had a lot of great conversations about R-Ladies (duh), community organization, independent work and project planning, GitHub issue etiquette, and of course, what it's like to meet people from twitter IRL (so meta!).
+
+Congratulations to Angela, Emily, and [Alex](https://twitter.com/alexpghayes) on your first unconf, and thank you for having me! I feel very, very lucky to be able to talk to and get to know more of the people-behind-the-code. Until next time! `r emo::ji("heart")`
