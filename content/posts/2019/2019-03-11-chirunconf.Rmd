@@ -53,7 +53,7 @@ I feel like our group accomplished a **ton** at the unconf. But the real secret 
 
 I'm very, very proud of what we did, and I feel like the veil of intimidation has been lifted -- the goal of every unconf project is not to have a brand new, blue sky project on CRAN at the end of two days. That's like, not what happens. And it's good! It's fine! We all did some `r emo::ji("bomb")` work, contributed to the R ecosystem, and built a stronger community, bit by bit. 
 
-There is also so much work left to be done, projects that need continued contributions, and issues that didn't get worked on at all. If you're interested in contributing to open source in R, I think the output and leftover issues from an unconf are a great place to look for inspiration. You can see all of the chirunconf19 issues [here](https://github.com/chirunconf/chiruncon19).
+There is also so much work left to be done, projects that need continued contributions, and issues that didn't get worked on at all. If you're interested in contributing to open source in R, I think the output and leftover issues from an unconf are a great place to look for inspiration. You can see all of the chirunconf19 issues [here](https://github.com/chirunconf/chirunconf19/issues).
 
 Besides all the technical stuff, it was so, so rewarding and fun to be able to hang out with R people in a smaller setting, where you can have longer conversations with more people rather than running around saying hi to people for 5 minutes at a time at a conference. I had a lot of great conversations about R-Ladies (duh), community organization, independent work and project planning, GitHub issue etiquette, and of course, what it's like to meet people from twitter IRL (so meta!).
 
