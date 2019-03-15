@@ -5,7 +5,7 @@ date: '2019-03-15'
 slug: visualizing-discogs
 ---
 
-In parts [one](/posts/discog-purrr/) and [two](/posts/more-discogging) of this series I did a whole lot of API pulling and data cleaning to get my [discogs](https://discogs.com/) collection into a tidy state `r emo::ji("pray")` Now I'm finally ready to do something with it!
+In parts [one](/posts/discog-purrr/) and [two](/posts/more-discogs) of this series I did a whole lot of API pulling and data cleaning to get my [discogs](https://discogs.com/) collection into a tidy state `r emo::ji("pray")` Now I'm finally ready to do something with it!
 
 I want to be able to explore my collection on a map (`r emo::ji("scream")`) and also see what styles of music I like, from where, and how that has changed over time.
 
