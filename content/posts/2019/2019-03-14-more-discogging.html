@@ -1,0 +1,514 @@
+---
+title: "February 2019: More discogging"
+author: ''
+date: '2019-03-14'
+slug: more-discogs
+---
+
+
+
+<p>(Yes, I know it’s March. This is a delayed followup for the February edition of my #mememe2019 project. It involves <em>even more</em> (and sometimes painful) data cleaning. If you just want to see some actual visualizations, head over to <a href="/posts/visualizing-discogs">part three</a>.)</p>
+<p>In one of my <a href="/posts/discog-purrr/">last posts</a>, I went through painstaking lengths to understand and tidy the nested lists that the discogs API returns. Now, it’s time to actually do something with the data!</p>
+<p>I’m interested in a few things about my music collection, specifically:</p>
+<ul>
+<li>the style of music,</li>
+<li>the year it came out,</li>
+<li>where it came from.</li>
+</ul>
+<p>The data I have so far, unfortunately, doesn’t contain any of that information! So we need to go back to <code>discogger</code> for more.</p>
+<p>Here’s what I have so far:</p>
+<pre class="r"><code>library(dplyr)
+library(here)
+
+basic_information_tidy &lt;- readRDS(here(&quot;static&quot;, &quot;data&quot;, &quot;discogger&quot;, &quot;basic_information_tidy.rds&quot;))
+
+basic_information_tidy</code></pre>
+<pre><code>## # A tibble: 157 x 5
+##    release_id title                artists_id format_descripti… format_name
+##         &lt;int&gt; &lt;chr&gt;                &lt;list&gt;     &lt;list&gt;            &lt;chr&gt;      
+##  1    7496378 Demo                 &lt;int [1]&gt;  &lt;chr [1]&gt;         Cassette   
+##  2    4490852 Observant Com El Mo… &lt;int [1]&gt;  &lt;chr [1]&gt;         Vinyl      
+##  3    5556486 Fuck Off             &lt;int [1]&gt;  &lt;chr [1]&gt;         Vinyl      
+##  4    9827276 I                    &lt;int [1]&gt;  &lt;chr [3]&gt;         Vinyl      
+##  5    9769203 Oído Absoluto        &lt;int [1]&gt;  &lt;chr [2]&gt;         Vinyl      
+##  6    7237138 A Cat&#39;s Cause, No D… &lt;int [1]&gt;  &lt;chr [2]&gt;         Vinyl      
+##  7   13117042 Tashme               &lt;int [1]&gt;  &lt;chr [2]&gt;         Vinyl      
+##  8    7113575 Demo                 &lt;int [1]&gt;  &lt;chr [1]&gt;         Cassette   
+##  9   10540713 Let The Miracles Be… &lt;int [1]&gt;  &lt;chr [1]&gt;         Cassette   
+## 10   11260950 Sub Space            &lt;int [1]&gt;  &lt;lgl [1]&gt;         Cassette   
+## # … with 147 more rows</code></pre>
+<p>First, I’ll use <code>release_id</code> to go get more information about each release, using the <code>discogger::discogs_release()</code> function.</p>
+<p>According to the <a href="https://www.discogs.com/developers/#page:home,header:home-rate-limiting">discogs API documentation</a>, “Requests are throttled by the server by source IP to 60 per minute for authenticated requests, and 25 per minute for unauthenticated requests, with some exceptions.” I’ll need to write my code in a way that handles this rate limit, instead of just failing!</p>
+<p>A good way to do that is using the <code>insistently()</code> function in the <code>purrr</code> package. <code>insistently</code> modifies a function to make it retry a certain number of times if there’s an error.</p>
+<p>It does this by using a <code>rate</code> object that determines the number of retries and the time to wait between each. I’m going to use the <code>rate_delay()</code> helper function. You just tell <code>rate_delay()</code> how long to wait (the <code>pause</code> argument) and how many times to try (<code>max_times</code>).</p>
+<p>Since the API limits you by requests per minute, I’ll set <code>pause</code> to 60 (seconds) and <code>max_times</code> to 2 – if we can’t get it after two tries, then it’s probably an actual error, and not rate limiting.</p>
+<pre class="r"><code>library(purrr)
+library(discogger)
+
+insistently_discogs_release &lt;- insistently(discogs_release,
+                                           rate = rate_delay(pause = 60, max_times = 2))</code></pre>
+<p>Now, if there <em>is</em> still an error after dealing with the rate limiting, I don’t want the whole thing to fail! So in addition to <code>insistently()</code>, I’m making the function work <em>safely</em> by using <code>safely()</code>, which modifies the function to return both a <code>result</code> and an <code>error</code> every time. If there’s no error, then <code>result</code> is not <code>NULL</code> and <code>error</code> is <code>NULL</code>. If there is an error, then the opposite is true. And actually, I’m going to modify <code>safely()</code> a bit so it returns <code>NA</code> (a missing value indicator) instead of <code>NULL</code> (a literal null object).</p>
+<pre class="r"><code>safely_insistently_discogs_release &lt;- safely(insistently_discogs_release,
+                                             otherwise = NA)</code></pre>
+<p>Now that that’s done, I can actually use this safe, insistent function to get the release information for every release in my collection!</p>
+<pre class="r"><code>release_data &lt;- basic_information_tidy %&gt;%
+  select(release_id) %&gt;%
+  mutate(data = map(release_id, safely_insistently_discogs_release))</code></pre>
+<p>Looking at at what my function returned, I can see that <code>data</code> is a list that contains <code>result</code> and <code>error</code>.</p>
+<pre class="r"><code>release_data %&gt;%
+  slice(1) %&gt;%
+  str(max.level = 3)</code></pre>
+<pre><code>## Classes &#39;tbl_df&#39;, &#39;tbl&#39; and &#39;data.frame&#39;:    1 obs. of  2 variables:
+##  $ release_id: int 7496378
+##  $ data      :List of 1
+##   ..$ :List of 2
+##   .. ..$ result:List of 3
+##   .. .. ..- attr(*, &quot;class&quot;)= chr &quot;discogs_database&quot;
+##   .. ..$ error : NULL</code></pre>
+<p>Let’s pull them out! And, like before, the actual release information is in an element of the <code>result</code> list called <code>content</code> (the rest just contains information about the API call).</p>
+<p>Note that I’ve set the <code>.default</code> argument in the <code>map()</code> functions to <code>NA</code> – otherwise, they return a <code>NULL</code>, which is way harder to work with! Would it be a blog post using purrr if I didn’t thank Jenny Bryan for telling me how to do something? 🙏</p>
+<pre class="r"><code>release_data &lt;- release_data %&gt;%
+  mutate(result = map(data, &quot;result&quot;, .default = NA),
+         error = map(data, &quot;error&quot;, .default = NA),
+         release_content = map(result, &quot;content&quot;, .default = NA))
+
+release_data</code></pre>
+<pre><code>## # A tibble: 157 x 5
+##    release_id data       result                 error     release_content
+##         &lt;int&gt; &lt;list&gt;     &lt;list&gt;                 &lt;list&gt;    &lt;list&gt;         
+##  1    7496378 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [31]&gt;    
+##  2    4490852 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [34]&gt;    
+##  3    5556486 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [32]&gt;    
+##  4    9827276 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [34]&gt;    
+##  5    9769203 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [34]&gt;    
+##  6    7237138 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [34]&gt;    
+##  7   13117042 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [33]&gt;    
+##  8    7113575 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [34]&gt;    
+##  9   10540713 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [33]&gt;    
+## 10   11260950 &lt;list [2]&gt; &lt;S3: discogs_database&gt; &lt;lgl [1]&gt; &lt;list [32]&gt;    
+## # … with 147 more rows</code></pre>
+<p>I’m not going to go as wild with the nested lists today, even though they’re <em>definitely there</em>, because 1) I think we’ve all learned our lesson, and 2) I really don’t need that much information.</p>
+<p>All I want is information on the music style and the year it was released, which are at the top level:</p>
+<pre class="r"><code>release_data %&gt;%
+  slice(1) %&gt;%
+  pull(release_content) %&gt;%
+  str(max.level = 2)</code></pre>
+<pre><code>## List of 1
+##  $ :List of 31
+##   ..$ status            : chr &quot;Accepted&quot;
+##   ..$ series            : list()
+##   ..$ labels            :List of 1
+##   ..$ community         :List of 7
+##   ..$ year              : int 2015
+##   ..$ images            :List of 1
+##   ..$ format_quantity   : int 1
+##   ..$ id                : int 7496378
+##   ..$ artists_sort      : chr &quot;Mollot&quot;
+##   ..$ genres            :List of 1
+##   ..$ thumb             : chr &quot;https://img.discogs.com/vEVegHrMNTsP6xG_K6OuFXz4h_U=/fit-in/150x150/filters:strip_icc():format(jpeg):mode_rgb()&quot;| __truncated__
+##   ..$ num_for_sale      : int 0
+##   ..$ title             : chr &quot;Demo&quot;
+##   ..$ artists           :List of 1
+##   ..$ date_changed      : chr &quot;2015-09-19T12:56:14-07:00&quot;
+##   ..$ lowest_price      : NULL
+##   ..$ styles            :List of 2
+##   ..$ released_formatted: chr &quot;18 Sep 2015&quot;
+##   ..$ formats           :List of 1
+##   ..$ estimated_weight  : int 65
+##   ..$ released          : chr &quot;2015-09-18&quot;
+##   ..$ date_added        : chr &quot;2015-09-19T08:54:15-07:00&quot;
+##   ..$ extraartists      : list()
+##   ..$ tracklist         :List of 5
+##   ..$ notes             : chr &quot;Spray-painted black tapes, 31 hand numered copies, risograph printed artwork. &quot;
+##   ..$ identifiers       : list()
+##   ..$ companies         : list()
+##   ..$ uri               : chr &quot;https://www.discogs.com/Mollot-Demo/release/7496378&quot;
+##   ..$ country           : chr &quot;Chile&quot;
+##   ..$ resource_url      : chr &quot;https://api.discogs.com/releases/7496378&quot;
+##   ..$ data_quality      : chr &quot;Needs Vote&quot;</code></pre>
+<p>We can grab those pretty easily, phew! And chuck everything else out. Again, I’m setting the default to be <code>NA</code> because those values might not be there for every release. If they’re not, I don’t want to deal with <code>NULL</code>s!</p>
+<pre class="r"><code>release_data &lt;- release_data %&gt;%
+  mutate(year = map_dbl(release_content, &quot;year&quot;, .default = NA_integer_),
+         styles = map(release_content, &quot;styles&quot;, .default = NA)) %&gt;%
+  select(-data, -result, -error, -release_content)</code></pre>
+<p>Like some things were in my last blog post, <code>styles</code> is a list of lists:</p>
+<pre class="r"><code>release_data</code></pre>
+<pre><code>## # A tibble: 157 x 3
+##    release_id  year styles    
+##         &lt;int&gt; &lt;dbl&gt; &lt;list&gt;    
+##  1    7496378  2015 &lt;list [2]&gt;
+##  2    4490852  2013 &lt;list [2]&gt;
+##  3    5556486  2014 &lt;list [2]&gt;
+##  4    9827276  2017 &lt;list [2]&gt;
+##  5    9769203  2017 &lt;list [1]&gt;
+##  6    7237138  2015 &lt;list [2]&gt;
+##  7   13117042  2019 &lt;list [2]&gt;
+##  8    7113575  2014 &lt;list [2]&gt;
+##  9   10540713  2015 &lt;list [2]&gt;
+## 10   11260950  2017 &lt;list [2]&gt;
+## # … with 147 more rows</code></pre>
+<pre class="r"><code>release_data %&gt;%
+  slice(1) %&gt;%
+  pull(styles) %&gt;%
+  str()</code></pre>
+<pre><code>## List of 1
+##  $ :List of 2
+##   ..$ : chr &quot;Punk&quot;
+##   ..$ : chr &quot;Hardcore&quot;</code></pre>
+<p>when really I just want a list of character vectors.</p>
+<pre class="r"><code>release_data &lt;- release_data %&gt;%
+  mutate(styles = map(styles, ~ unlist(.), .default = NA))
+
+release_data %&gt;%
+  slice(1) %&gt;%
+  pull(styles) %&gt;%
+  str()</code></pre>
+<pre><code>## List of 1
+##  $ : chr [1:2] &quot;Punk&quot; &quot;Hardcore&quot;</code></pre>
+<p>Awesome!</p>
+<p>Except, for my purposes I actually only want <em>one</em> style per release. I know. So, I looked through them and came up with a prioritized list of styles - for example, if a release has both “hardcore” and “punk,” I’d take “hardcore” as the style.</p>
+<pre class="r"><code>style_priority &lt;- function(style){
+  case_when(style %in% c(&quot;New Wave&quot;, &quot;Hardcore&quot;) ~ 1,
+            style %in% c(&quot;Indie Rock&quot;, &quot;Shoegaze&quot;, &quot;Stoner Rock&quot;, &quot;Black Metal&quot;, &quot;Indie Pop&quot;) ~ 2,
+            style %in% c(&quot;Experimental&quot;, &quot;Post-Punk&quot;, &quot;Grunge&quot;, &quot;Synth-pop&quot;) ~ 3,
+            style %in% c(&quot;Punk&quot;) ~ 4,
+            TRUE ~ 5)
+}
+
+library(tidyr)
+
+release_data &lt;- release_data %&gt;%
+  unnest() %&gt;%
+  mutate(style_priority = style_priority(styles)) %&gt;%
+  group_by(release_id) %&gt;%
+  filter(style_priority == min(style_priority)) %&gt;%
+  ungroup() %&gt;%
+  select(-style_priority) %&gt;%
+  rename(style = styles)</code></pre>
+<p>Some releases are missing a <code>style</code>, so I’ll manually put what I think it should be.</p>
+<pre class="r"><code>release_data &lt;- release_data %&gt;%
+  mutate(style = case_when(release_id %in% c(9477305) ~ &quot;Post-Punk&quot;,
+                           release_id %in% c(6022854, 4465008) ~ &quot;Indie Rock&quot;,
+                           release_id %in% c(7018322) ~ &quot;Indie Pop&quot;,
+                           release_id %in% c(2819870, 4298516) ~ &quot;Hip Hop&quot;,
+                           TRUE ~ style))
+
+release_data</code></pre>
+<pre><code>## # A tibble: 157 x 3
+##    release_id  year style    
+##         &lt;int&gt; &lt;dbl&gt; &lt;chr&gt;    
+##  1    7496378  2015 Hardcore 
+##  2    4490852  2013 Hardcore 
+##  3    5556486  2014 Post-Punk
+##  4    9827276  2017 Hardcore 
+##  5    9769203  2017 Punk     
+##  6    7237138  2015 Hardcore 
+##  7   13117042  2019 Hardcore 
+##  8    7113575  2014 Hardcore 
+##  9   10540713  2015 Post-Punk
+## 10   11260950  2017 Hardcore 
+## # … with 147 more rows</code></pre>
+<p>Perfect!</p>
+<p>Next, I want to know <em>where</em> each release came from (i.e., where the artists are from), so I have to use the API to look up information by artist.</p>
+<p>Again, I’m creating a <em>safe</em> and <em>insistent</em> version of the appropriate <code>discogger</code> function to do so!</p>
+<p>I’m also excluding the id <code>194</code> because it’s just a placeholder ID used any time an artist on a release is “Various”, and doesn’t have an artists page – no point in hitting the API for results I know aren’t there!</p>
+<pre class="r"><code>library(tidyr)</code></pre>
+<pre class="r"><code>safely_insistently_discogs_artist &lt;- safely(insistently(discogs_artist,
+                                                        rate = rate_delay(pause = 60,
+                                                                          max_times = 2)),
+                                            otherwise = NA)
+
+artist_data &lt;- basic_information_tidy %&gt;%
+  select(artists_id) %&gt;%
+  unnest() %&gt;%
+  distinct() %&gt;%
+  filter(artists_id != 194) %&gt;%
+  mutate(data = map(artists_id, safely_insistently_discogs_artist),
+         result = map(data, &quot;result&quot;, .default = NA),
+         error = map(data, &quot;error&quot;, .default = NA),
+         artist_content = map(result, &quot;content&quot;, .default = NA))</code></pre>
+<p>Errors?</p>
+<pre class="r"><code>artist_data %&gt;%
+  filter(!is.na(error))</code></pre>
+<pre><code>## # A tibble: 0 x 5
+## # … with 5 variables: artists_id &lt;int&gt;, data &lt;list&gt;, result &lt;list&gt;,
+## #   error &lt;list&gt;, artist_content &lt;list&gt;</code></pre>
+<p>Nice! If I didn’t modify the function to run insistently and safely, there would have been lots of errors. Believe me, I tried. 😅</p>
+<p>All I want from the artist data are the profile and the name, which are pretty easy to grab.</p>
+<pre class="r"><code>artist_data &lt;- artist_data %&gt;%
+  mutate(profile = map_chr(artist_content, &quot;profile&quot;, .default = NA_character_),
+         artist_name = map_chr(artist_content, &quot;name&quot;, .default = NA_character_)) %&gt;%
+  select(artist_id = artists_id, profile, artist_name)
+
+artist_data</code></pre>
+<pre><code>## # A tibble: 120 x 3
+##    artist_id profile                                     artist_name       
+##        &lt;int&gt; &lt;chr&gt;                                       &lt;chr&gt;             
+##  1   4619796 Canadian hardcore-punk band from Toronto, … Mollot            
+##  2   3192745 Hardcore / punk band from Barcelona, Spain. Una Bèstia Incont…
+##  3   2876549 Punk band from London, UK.                  Good Throb        
+##  4   2769828 S.H.I.T. is a hardcore / punk band from To… S.H.I.T. (3)      
+##  5   4282571 Punk band from Madrid (Spain).              Rata Negra        
+##  6   3596548 American hardcore / punk band from New Yor… Ivy (18)          
+##  7   5211980 Canadian hardcore / punk band from Toronto… Tashme            
+##  8   4450861 Canadian hardcore / punk band from Calgary… Desgraciados      
+##  9   4273896 Punk band from Kansas City.                 Phantom Head      
+## 10   5694086 American hardcore-punk band from New York … Sub Space (2)     
+## # … with 110 more rows</code></pre>
+<p>Now I want to do two things. The first is actually get the artist name – when there’s a duplicate artist name on discogs, they put a number in parentheses at the end of the name. I don’t want that!</p>
+<pre class="r"><code>artist_data &lt;- artist_data %&gt;%
+  separate(artist_name, into = &quot;artist_name&quot;, sep = &quot; \\([0-9]&quot;)
+
+artist_data</code></pre>
+<pre><code>## # A tibble: 120 x 3
+##    artist_id profile                                     artist_name       
+##        &lt;int&gt; &lt;chr&gt;                                       &lt;chr&gt;             
+##  1   4619796 Canadian hardcore-punk band from Toronto, … Mollot            
+##  2   3192745 Hardcore / punk band from Barcelona, Spain. Una Bèstia Incont…
+##  3   2876549 Punk band from London, UK.                  Good Throb        
+##  4   2769828 S.H.I.T. is a hardcore / punk band from To… S.H.I.T.          
+##  5   4282571 Punk band from Madrid (Spain).              Rata Negra        
+##  6   3596548 American hardcore / punk band from New Yor… Ivy               
+##  7   5211980 Canadian hardcore / punk band from Toronto… Tashme            
+##  8   4450861 Canadian hardcore / punk band from Calgary… Desgraciados      
+##  9   4273896 Punk band from Kansas City.                 Phantom Head      
+## 10   5694086 American hardcore-punk band from New York … Sub Space         
+## # … with 110 more rows</code></pre>
+<p>Good!</p>
+<p>The next is a little more… complicated.</p>
+<p>The band profile tends to take the format “… band from [location]”, with information about the location from “from” to the next period <em>or</em> to the end of the string. To extract this, I’m using a regex that I don’t totally understand, but that my coworker Sharleen has <a href="https://sharleenw.rbind.io/post/hamilton_cbc_part_1/hamilton-christmas-bird-count-part-1/">blogged about</a> (and told me about when I bet she couldn’t do it even though she had <em>already told me she did it</em> 😬).</p>
+<pre class="r"><code>library(stringr)
+
+artist_data &lt;- artist_data %&gt;%
+  mutate(location = coalesce(str_extract(profile, &quot;(?&lt;=from\\s).+?(?=\\.)&quot;),
+                             str_extract(profile, &quot;(?&lt;=from).*&quot;))) %&gt;%
+  separate(location, into = c(&quot;city&quot;, &quot;province&quot;, &quot;country&quot;), sep = &quot;[:punct:]&quot;) %&gt;%
+  mutate_at(vars(city, province, country), str_trim)
+
+artist_data</code></pre>
+<pre><code>## # A tibble: 120 x 6
+##    artist_id profile                 artist_name    city   province country
+##        &lt;int&gt; &lt;chr&gt;                   &lt;chr&gt;          &lt;chr&gt;  &lt;chr&gt;    &lt;chr&gt;  
+##  1   4619796 Canadian hardcore-punk… Mollot         Toron… Ontario  &lt;NA&gt;   
+##  2   3192745 Hardcore / punk band f… Una Bèstia In… Barce… Spain    &lt;NA&gt;   
+##  3   2876549 Punk band from London,… Good Throb     London UK       &lt;NA&gt;   
+##  4   2769828 S.H.I.T. is a hardcore… S.H.I.T.       Toron… Ontario  Canada 
+##  5   4282571 Punk band from Madrid … Rata Negra     Madrid Spain    &quot;&quot;     
+##  6   3596548 American hardcore / pu… Ivy            New Y… &lt;NA&gt;     &lt;NA&gt;   
+##  7   5211980 Canadian hardcore / pu… Tashme         Toron… Ontario  &lt;NA&gt;   
+##  8   4450861 Canadian hardcore / pu… Desgraciados   Calga… Alberta  &lt;NA&gt;   
+##  9   4273896 Punk band from Kansas … Phantom Head   Kansa… &lt;NA&gt;     &lt;NA&gt;   
+## 10   5694086 American hardcore-punk… Sub Space      New Y… &lt;NA&gt;     &lt;NA&gt;   
+## # … with 110 more rows</code></pre>
+<p>It looks ok, but the data isn’t super consistent in terms of whether it includes a province, country, both, neither, etc. To try and figure out what belongs where, if there isn’t an entry in <code>country</code> then I’m going to look at <code>province</code> and compare it to a list of countries from the <code>maps</code> package. If it’s in there, then I’ll set <code>country</code> to that. Capeesh?</p>
+<pre class="r"><code>library(maps)
+
+countries &lt;- world.cities %&gt;%
+  pull(country.etc) %&gt;%
+  unique()
+
+artist_data &lt;- artist_data %&gt;%
+  mutate(province_is_country = (is.na(country) | country == &quot;&quot;) &amp; province %in% countries,
+         country = ifelse(province_is_country, province, country),
+         province = ifelse(province_is_country, NA_character_, province)) %&gt;%
+  select(-province_is_country)
+
+artist_data</code></pre>
+<pre><code>## # A tibble: 120 x 6
+##    artist_id profile                 artist_name    city   province country
+##        &lt;int&gt; &lt;chr&gt;                   &lt;chr&gt;          &lt;chr&gt;  &lt;chr&gt;    &lt;chr&gt;  
+##  1   4619796 Canadian hardcore-punk… Mollot         Toron… Ontario  &lt;NA&gt;   
+##  2   3192745 Hardcore / punk band f… Una Bèstia In… Barce… &lt;NA&gt;     Spain  
+##  3   2876549 Punk band from London,… Good Throb     London &lt;NA&gt;     UK     
+##  4   2769828 S.H.I.T. is a hardcore… S.H.I.T.       Toron… Ontario  Canada 
+##  5   4282571 Punk band from Madrid … Rata Negra     Madrid &lt;NA&gt;     Spain  
+##  6   3596548 American hardcore / pu… Ivy            New Y… &lt;NA&gt;     &lt;NA&gt;   
+##  7   5211980 Canadian hardcore / pu… Tashme         Toron… Ontario  &lt;NA&gt;   
+##  8   4450861 Canadian hardcore / pu… Desgraciados   Calga… Alberta  &lt;NA&gt;   
+##  9   4273896 Punk band from Kansas … Phantom Head   Kansa… &lt;NA&gt;     &lt;NA&gt;   
+## 10   5694086 American hardcore-punk… Sub Space      New Y… &lt;NA&gt;     &lt;NA&gt;   
+## # … with 110 more rows</code></pre>
+<p>That’s starting to look better! But some artists don’t even have a city:</p>
+<pre class="r"><code>artist_data %&gt;%
+  filter(is.na(city))</code></pre>
+<pre><code>## # A tibble: 40 x 6
+##    artist_id profile               artist_name       city  province country
+##        &lt;int&gt; &lt;chr&gt;                 &lt;chr&gt;             &lt;chr&gt; &lt;chr&gt;    &lt;chr&gt;  
+##  1   6370901 &quot;&quot;                    Small Man         &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  2   4602432 &quot;&quot;                    Pines             &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  3   4892872 &quot;&quot;                    Stuck Pigs        &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  4   4911807 American hardcore-pu… Krimewatch        &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  5   4993817 &quot;&quot;                    Pleather          &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  6   6400672 &quot;&quot;                    Deedee Catpiss A… &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  7   6400673 &quot;&quot;                    Disco Lemonade    &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  8   6111119 &quot;&quot;                    Bad Example       &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+##  9   5908156 &quot;&quot;                    Payback           &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+## 10   5621225 &quot;&quot;                    FLEM              &lt;NA&gt;  &lt;NA&gt;     &lt;NA&gt;   
+## # … with 30 more rows</code></pre>
+<p>and for those whose profile <em>isn’t</em> just &quot;&quot;,</p>
+<pre class="r"><code>artist_data %&gt;%
+  filter(is.na(city) &amp; profile != &quot;&quot;) %&gt;%
+  pull(profile)</code></pre>
+<pre><code>##  [1] &quot;American hardcore-punk band based in  New York City.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+##  [2] &quot;American band formed in 1979 in Los Angeles, California, who plays a fusion of funk, metal, rock, reggae, ska, punk, soul, ...&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+##  [3] &quot;Talking Heads were an American rock band formed in 1975 in New York City and disbanded in 1991. The band was comprised of [a3918] (lead vocals, guitar), [a47110] (drums), [a47111] (bass), and [a126729] (keyboards, guitar). They released eight albums, in addition to several well received live albums.\r\n\r\nInducted into Rock And Roll Hall of Fame in 2002 (Performer).\r\n\r\nGenres: New wave, post-punk, art punk, pop rock, art pop, funk rock\r\n&quot;                                                                                                                                                                                                                                                                                                                                                                                                                         
+##  [4] &quot;Formed: 1978 // Corte Madera, CA, United States \r\nMembers:\r\nHuey Lewis (lead vocals, harmonica)\r\nJohnny Colla (saxophone, guitar, vocals)\r\nBill Gibson (percussion, vocals)\r\nJohn Pierce (bass) 1995 - \r\nSean Hopper (keyboards, vocals)\r\nStef Burns (lead guitar, vocals) 2000 - \r\n\&quot;The News Brothers\&quot; 1994 - \r\nMarvin McFadden (trumpet)\r\nRob Sudduth (tenor &amp; baritone saxophone) \r\n\r\nFormer members:\r\nMario Cipollina (bass, vocals) 1979 - 1995\r\nChris Hayes (lead guitar, vocals) 1979 - 2000\r\nRon Stallings (tenor saxophone) 1994 - 2009&quot;                                                                                                                                                                                                                                                                                                         
+##  [5] &quot;Olympia, Washington based punk trio Naomi Punk featuring singer/guitarist Travis Benjamin Coster, guitarist Neil Gregerson, and drummer Nic Luempert.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+##  [6] &quot;The Smiths were an English rock band, formed in 1982 in Manchester by [url=http://www.discogs.com/artist/92577-Morrissey]Morrissey[/url] and [a37120].\r\nDisbanded in 1987.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+##  [7] &quot;American New Wave / Art Pop band formed in Athens, Georgia, USA in 1976.\r\n\r\nKate Pierson (b. 27 April 1948, Weehawken, New Jersey, USA; organ/vocals)\r\nCindy Wilson (b. 28 February 1957, Athens, Georgia, USA; guitar/vocals)\r\nRicky Wilson (b. 19 March 1953, Athens, Georgia, USA d. 12 October 1985; guitar)\r\nFred Schneider (b. 1 July 1951, Newark, New Jersey, USA; keyboards/vocals)\r\nKeith Strickland (b. 26 October 1953, Athens, Georgia, USA; drums. Later switched to guitar after Ricky Wilson&#39;s passing.)\r\n\r\n&quot;                                                                                                                                                                                                                                                                                                                                             
+##  [8] &quot;From Hattiesburg, Mississippi.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+##  [9] &quot;American indie rock band founded in 1998 in Los Angeles and disbanded in 2011.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+## [10] &quot;Dir Yassin was an Israeli punk hardcore band formed in December 1997. The original line-up was Kobbi (guitar), Fede (drum), Haim (bass), Adi (vocal), Federico (vocal). \r\nThe name was chosen as an effort to bring the sublimed bloody facts of Zionism and Israel&#39;s history back into its collective consciousness.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+## [11] &quot;For the band Cat Power with [a254210] as member please use [a6207375]. \r\n\r\nAmerican singer-songwriter, born 21 January 1972 in Atlanta, Georgia, USA.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+## [12] &quot;Earth, pioneers of the drone/doom genre, make music that is heavier than heavy, using incredibly downtuned guitars and usually playing no more than a couple riffs per song.  They are based in Seattle, Washington.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+## [13] &quot;Popular hip hop duo composed of [a=Jeff Townes] AKA [a=DJ Jazzy Jeff] (b. Jeffrey A. Townes, 22 January 1965, Philadelphia, Pennsylvania, USA) and [a=Will Smith] AKA [a=The Fresh Prince] (b. Willard Christopher Smith Jr., 25 September 1968, Philadelphia, Pennsylvania, USA).\r\nJazzy Jeff started DJing in the mid-1970&#39;s when he was a mere 10 years old, (though he is not to be confused with the similarly-titled Jazzy Jeff who cut an album, also for Jive, in 1985). \r\nTogether with [a=Will Smith] , they became the first rap act to receive a Grammy Award for their second LP \&quot;Parents Just Don&#39;t Understand\&quot;. \r\nMeanwhile, Jeff founded \&quot;A Touch Of Jazz Inc\&quot;, a stable of producers working on rap/R&amp;B projects. The duo picked up a second Grammy for \&quot;Summertime\&quot; in 1991, before scoring a shock UK number 1 in 1993 with \&quot;Boom! Shake The Room\&quot;. \r\n&quot;
+## [14] &quot;Chilean twee pop band that started on 2013.&quot;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+## [15] &quot;Vancouver, British Columbia\r\nDisbanded in 2015&quot;</code></pre>
+<p>Well, it’s because their profile’s <em>don’t</em> follow the format “… band from [location]”! That’s ok, I’m not too proud to manually enter data. I’m going to combine the manually entered locations with the ones that I derived (prioritizing the manual ones to fix a few typos).</p>
+<pre class="r"><code>manual_locations &lt;- readr::read_csv(here(&quot;static&quot;, &quot;data&quot;, &quot;discogger&quot;, &quot;manual_locations.csv&quot;))
+
+artist_data &lt;- artist_data %&gt;%
+  left_join(manual_locations, 
+            by = &quot;artist_name&quot;,
+            suffix = c(&quot;_discogs&quot;, &quot;_manual&quot;)) %&gt;%
+  mutate(city = coalesce(city_manual, city_discogs),
+         city = ifelse(city == &quot;New York City&quot;, &quot;New York&quot;, city),
+         province = coalesce(province_manual, province_discogs),
+         country = coalesce(country_manual, country_discogs)) %&gt;%
+  select(-ends_with(&quot;_discogs&quot;), -ends_with(&quot;_manual&quot;), -profile)</code></pre>
+<p>My goal (which I just realized I haven’t mentioned yet!) is to get the latitude and longitude of the city that each artist is from, hence wanting the city and, where possible, the province/state and country. So again, I’m using the <code>world.cities</code> data set from <code>maps</code>!</p>
+<pre class="r"><code>artist_locations &lt;- artist_data %&gt;%
+  left_join(world.cities %&gt;%
+              select(-pop, -capital),
+            by = c(&quot;city&quot; = &quot;name&quot;))</code></pre>
+<p>Obviously some city names exist more than once in the world. In those cases (where there’s duplicate entries of a band in <code>artist_locations</code>, I’ll keep cases where <code>country</code> and <code>country.etc</code> match <em>or</em> where we don’t have any information on the country.</p>
+<pre class="r"><code>artist_locations &lt;- artist_locations %&gt;%
+  add_count(artist_id) %&gt;%
+  filter((n &gt; 1 &amp; (country == country.etc | is.na(country))) | 
+           n == 1) %&gt;%
+  select(-n)</code></pre>
+<p>Let’s see who we still have too much (yet not enough!) information on:</p>
+<pre class="r"><code>library(janitor)
+
+artist_locations %&gt;%
+  get_dupes(artist_id) %&gt;%
+  count(city)</code></pre>
+<pre><code>## # A tibble: 12 x 2
+##    city            n
+##    &lt;chr&gt;       &lt;int&gt;
+##  1 Birmingham      2
+##  2 Boston          6
+##  3 Denton          2
+##  4 Dublin          2
+##  5 Kansas City     6
+##  6 Manchester      2
+##  7 Portland        3
+##  8 Richmond        7
+##  9 San Diego       5
+## 10 San Jose       48
+## 11 Springfield     6
+## 12 Washington      6</code></pre>
+<p>Most of these are dupes because the city exists in multiple countries, but we don’t have country information on the artist. I’ll put this in manually, then again filter for where <code>country = country.etc</code></p>
+<pre class="r"><code>artist_locations &lt;- artist_locations %&gt;%
+  mutate(country = case_when(city %in% c(&quot;Birmingham&quot;, &quot;Boston&quot;, &quot;Denton&quot;, &quot;San Diego&quot;, &quot;San Jose&quot;, &quot;Washington&quot;, &quot;Portland&quot;, &quot;Kansas City&quot;, &quot;Springfield&quot;, &quot;Richmond&quot;) ~ &quot;USA&quot;,
+                             city == &quot;Dublin&quot; ~ &quot;Ireland&quot;,
+                             city == &quot;Manchester&quot; ~ &quot;UK&quot;,
+                             TRUE ~ country)) %&gt;%
+  add_count(artist_id) %&gt;%
+  filter((n &gt; 1 &amp; (country == country.etc | is.na(country))) | 
+           n == 1) %&gt;%
+  select(-n)</code></pre>
+<p>Are we there yet? 😪</p>
+<pre class="r"><code>artist_locations %&gt;%
+  get_dupes(artist_id)</code></pre>
+<pre><code>## # A tibble: 15 x 9
+##    artist_id dupe_count artist_name city  province country country.etc
+##        &lt;int&gt;      &lt;int&gt; &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt;    &lt;chr&gt;   &lt;chr&gt;      
+##  1   4273896          2 Phantom He… Kans… &lt;NA&gt;     USA     USA        
+##  2   4273896          2 Phantom He… Kans… &lt;NA&gt;     USA     USA        
+##  3   4518577          2 Chemos      Port… Oregon   USA     USA        
+##  4   4518577          2 Chemos      Port… Oregon   USA     USA        
+##  5   4706419          2 Chasm       Kans… Missouri USA     USA        
+##  6   4706419          2 Chasm       Kans… Missouri USA     USA        
+##  7   4927139          2 Warm Bodies Kans… Missouri USA     USA        
+##  8   4927139          2 Warm Bodies Kans… Missouri USA     USA        
+##  9   6370901          5 Small Man   Spri… IL       USA     USA        
+## 10   6370901          5 Small Man   Spri… IL       USA     USA        
+## 11   6370901          5 Small Man   Spri… IL       USA     USA        
+## 12   6370901          5 Small Man   Spri… IL       USA     USA        
+## 13   6370901          5 Small Man   Spri… IL       USA     USA        
+## 14   6513909          2 Itch        Rich… Virginia USA     USA        
+## 15   6513909          2 Itch        Rich… Virginia USA     USA        
+## # … with 2 more variables: lat &lt;dbl&gt;, long &lt;dbl&gt;</code></pre>
+<p>These last few are city names that are in more than one <em>state</em> in the US. I want Kansas City, MO (not KS), Portland OR, Springfield IL, and Richmond VA. Of course, the <em>state</em> wasn’t in <code>world.cities</code>. I have to go to <code>us.cities</code> for that.</p>
+<pre class="r"><code>head(us.cities)</code></pre>
+<pre><code>##         name country.etc    pop   lat    long capital
+## 1 Abilene TX          TX 113888 32.45  -99.74       0
+## 2   Akron OH          OH 206634 41.08  -81.52       0
+## 3 Alameda CA          CA  70069 37.77 -122.26       0
+## 4  Albany GA          GA  75510 31.58  -84.18       0
+## 5  Albany NY          NY  93576 42.67  -73.80       2
+## 6  Albany OR          OR  45535 44.62 -123.09       0</code></pre>
+<p>It needs some cleaning too 🙄</p>
+<pre class="r"><code>dupe_us_cities &lt;- us.cities %&gt;%
+  mutate(name = str_trim(str_replace(name, country.etc, &quot;&quot;)),
+         keep = (name == &quot;Portland&quot; &amp; country.etc == &quot;OR&quot;) | 
+           (name == &quot;Kansas City&quot; &amp; country.etc == &quot;MO&quot;) | 
+           (name == &quot;Springfield&quot; &amp; country.etc == &quot;IL&quot;) |
+           (name == &quot;Richmond&quot; &amp; country.etc == &quot;VA&quot;)) %&gt;%
+  filter(keep) %&gt;%
+  select(city = name, lat, long)</code></pre>
+<p>Now, I’ll just keep the <em>correct</em> cities for artists with duplicate entries.</p>
+<pre class="r"><code>artist_locations &lt;- artist_locations %&gt;%
+  get_dupes(artist_id) %&gt;%
+  inner_join(dupe_us_cities) %&gt;%
+  bind_rows(
+    artist_locations %&gt;%
+      add_count(artist_id) %&gt;%
+      filter(n == 1) %&gt;%
+      select(-n)
+  )
+
+artist_locations %&gt;% 
+  get_dupes(artist_id)</code></pre>
+<pre><code>## # A tibble: 0 x 9
+## # … with 9 variables: artist_id &lt;int&gt;, dupe_count &lt;int&gt;,
+## #   artist_name &lt;chr&gt;, city &lt;chr&gt;, province &lt;chr&gt;, country &lt;chr&gt;,
+## #   country.etc &lt;chr&gt;, lat &lt;dbl&gt;, long &lt;dbl&gt;</code></pre>
+<p>😅</p>
+<pre class="r"><code>artist_locations %&gt;% 
+  filter(is.na(lat))</code></pre>
+<pre><code>## # A tibble: 0 x 9
+## # … with 9 variables: artist_id &lt;int&gt;, dupe_count &lt;int&gt;,
+## #   artist_name &lt;chr&gt;, city &lt;chr&gt;, province &lt;chr&gt;, country &lt;chr&gt;,
+## #   country.etc &lt;chr&gt;, lat &lt;dbl&gt;, long &lt;dbl&gt;</code></pre>
+<p>😅 😅</p>
+<p>One last thing, I promise – I want to know whether each vinyl release is a 7&quot; or a 12&quot;.</p>
+<pre class="r"><code>basic_information_tidy &lt;- basic_information_tidy %&gt;%
+  mutate(format = case_when(format_name == &quot;Cassette&quot; ~ &quot;Tape&quot;,
+                                    str_detect(format_description, &quot;LP|12&quot;) ~ &#39;12&quot;&#39;,
+                                    str_detect(format_description, &quot;7&quot;) ~ &#39;7&quot;&#39;)) %&gt;%
+  select(-format_name, -format_description)</code></pre>
+<p>Now I can put together my collection with information about the release and the artist!</p>
+<pre class="r"><code>collection_data &lt;- basic_information_tidy %&gt;%
+  unnest() %&gt;%
+  left_join(release_data, by = &quot;release_id&quot;) %&gt;%
+  left_join(artist_locations, by = c(&quot;artists_id&quot; = &quot;artist_id&quot;)) %&gt;%
+  select(release_id, title, format, artist_id = artists_id, artist_name, year, style, city, country = country.etc, lat, long)
+
+collection_data</code></pre>
+<pre><code>## # A tibble: 169 x 11
+##    release_id title format artist_id artist_name  year style city  country
+##         &lt;int&gt; &lt;chr&gt; &lt;chr&gt;      &lt;int&gt; &lt;chr&gt;       &lt;dbl&gt; &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;  
+##  1    7496378 Demo  Tape     4619796 Mollot       2015 Hard… Toro… Canada 
+##  2    4490852 Obse… &quot;12\&quot;&quot;   3192745 Una Bèstia…  2013 Hard… Barc… Spain  
+##  3    5556486 Fuck… &quot;12\&quot;&quot;   2876549 Good Throb   2014 Post… Lond… UK     
+##  4    9827276 I     &quot;7\&quot;&quot;    2769828 S.H.I.T.     2017 Hard… Toro… Canada 
+##  5    9769203 Oído… &quot;12\&quot;&quot;   4282571 Rata Negra   2017 Punk  Madr… Spain  
+##  6    7237138 A Ca… &quot;7\&quot;&quot;    3596548 Ivy          2015 Hard… New … USA    
+##  7   13117042 Tash… &quot;7\&quot;&quot;    5211980 Tashme       2019 Hard… Toro… Canada 
+##  8    7113575 Demo  Tape     4450861 Desgraciad…  2014 Hard… Calg… Canada 
+##  9   10540713 Let … Tape     4273896 Phantom He…  2015 Post… Kans… USA    
+## 10   11260950 Sub … Tape     5694086 Sub Space    2017 Hard… New … USA    
+## # … with 159 more rows, and 2 more variables: lat &lt;dbl&gt;, long &lt;dbl&gt;</code></pre>
+<p>In the words of Elle Woods, “we did it!” If you want to see what I actually do with this data, head over to <a href="/posts/visualizing-discogs">part three</a>.</p>

@@ -1,0 +1,149 @@
+---
+title: "February 2019: Visualizing my discogs collection"
+author: ''
+date: '2019-03-15'
+slug: visualizing-discogs
+---
+
+In parts [one](/posts/discog-purrr/) and [two](/posts/more-discogging) of this series I did a whole lot of API pulling and data cleaning to get my [discogs](https://discogs.com/) collection into a tidy state `r emo::ji("pray")` Now I'm finally ready to do something with it!
+
+I want to be able to explore my collection on a map (`r emo::ji("scream")`) and also see what styles of music I like, from where, and how that has changed over time.
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, message = FALSE, warning = FALSE)
+library(here)
+library(dplyr)
+
+collection_data <- readRDS(here("static", "data", "discogger", "collection_data.rds")) %>%
+  as_tibble()
+```
+
+```{r}
+collection_data
+```
+
+So, yes, I want to map my discogs collection all over the world `r emo::ji("globe")`
+
+Pretty much everything I know about spatial data is from Jesse Sadler's amazing blog post, [Introduction to GIS with R](https://www.jessesadler.com/post/gis-with-r-intro/), so I'm pulling this code heavily from there.
+
+First, so that we don't have legend fatigue, I'm going to lump the least common music styles together. My collection is fairly dominated by a few things:
+
+```{r}
+collection_data %>%
+  count(style, sort = TRUE)
+```
+
+and while I'd love to specifically look at New Wave releases across the world, it just doesn't make sense for that grand total of 4.
+
+```{r}
+library(forcats)
+
+collection_data <- collection_data %>%
+  mutate(style = fct_lump(as_factor(style), 4))
+```
+
+Next, I'm converting my data frame into an `sf` object using the `long` and `lat` fields.
+
+```{r}
+library(sf)
+library(dplyr)
+
+points_sf <- collection_data %>%
+  filter(!is.na(lat)) %>%
+  st_as_sf(coords = c("long", "lat"), crs = 4326)
+
+points_sf
+```
+
+In order to visualize those, I need a map of the world so I have something to plot on top of (I mean, I guess I don't *need* to use the actual earth as a reference point, but I think we'd all appreciate it if I did)
+
+```{r}
+library(rnaturalearth)
+
+countries_sf <- ne_countries(scale = "medium", returnclass = "sf")
+```
+
+And then I can plot my collection! I'm using different colours for different music styles, and shapes for different formats.
+
+To no surprise, the vast majority of my collection is from North America, with a real focus on the Pacific North West (I used to live in Vancouver `r emo::ji("umbrella")`) and Toronto/East Coast USA (there's just a lot of punk there, in general `r emo::ji("guitar")`).
+
+```{r, out.width="100%"}
+library(ggplot2)
+library(paletteer)
+library(plotly)
+
+collection_plot <- ggplot() +
+  geom_sf(data = countries_sf, fill = "white", size = 0.25, alpha = 0.5) +
+  geom_sf(
+    data = st_jitter(points_sf,
+                     amount = 0.75),
+    aes(color = style, shape = format,
+        text = glue::glue('"{title}" by {artist_name}<br>{city}, {country}<br>{style} {format}')),
+    alpha = 0.75,
+    show.legend = FALSE,
+    size = 2
+  ) + 
+  theme_bw() + 
+  theme(legend.position = "none", 
+        legend.title = element_blank(),
+        axis.text = element_blank(), 
+        axis.ticks = element_blank()) + 
+  scale_color_paletteer_d("rcartocolor", "Pastel")
+
+ggplotly(collection_plot, 
+         tooltip = "text")
+```
+
+I'm also interested in the different ~eras~ of my music taste -- do I like different kinds of music from different times? You know how to add the time dimension to a plot?
+
+Animation `r emo::ji("sunglasses")` `r emo::ji("shooting_star")`
+
+Similar to spatial data, everything I know about animation is from one source: Thomas Lin Pedersen's [talk](https://resources.rstudio.com/rstudio-conf-2019/gganimate-live-cookbook) about the [`gganimate` package](https://github.com/thomasp85/gganimate) from RStudio conf.
+
+I'm going to focus on North America, since that's where most of my information is from. In a maybe blasphemous move, I'm overlaying the American states and Canadian provinces and territories *over* the map of the world's countries `r emo::ji("grimace")`
+
+```{r}
+states_sf <- ne_states(country = c("Canada", "United States of America"), returnclass = "sf")
+
+north_america_collection_plot <- ggplot() +
+  geom_sf(data = countries_sf, fill = "white", size = 0.25) +
+  geom_sf(data = states_sf, fill = NA, size = 0.25) + 
+  geom_sf(
+    data = st_jitter(points_sf %>% filter(year > 0),
+                     amount = 0.75),
+    aes(color = style, shape = format),
+    alpha = 0.75,
+    show.legend = "point",
+    size = 3
+  ) +
+  theme_bw() + 
+  theme(legend.title = element_blank(),
+        legend.position = "bottom") + 
+  guides(colour = guide_legend(override.aes = list(size=5, alpha = 1)),
+         shape = guide_legend(override.aes = list(size=5, alpha = 1))) + 
+  scale_color_paletteer_d("rcartocolor", "Pastel") + 
+  coord_sf(xlim = c(-130, -65), ylim = c(23, 55), datum = NA)
+```
+
+Without animation, it's not bad.
+
+```{r}
+north_america_collection_plot
+```
+
+With animation it's *way* cooler.
+
+```{r, cache=TRUE, out.width="100%"}
+library(gganimate)
+
+north_america_collection_plot + 
+  transition_states(as.factor(year),
+                    state_length = 3) + 
+  ggtitle("{closest_state}") + 
+  shadow_mark() 
+```
+
+I lived in the PNW from 2013 to 2017, and you can see a huuuge increase in music from there during that time. Pretty cool!
+
+I think that's all I have `r emo::ji("information_desk_person")` Bye!
+

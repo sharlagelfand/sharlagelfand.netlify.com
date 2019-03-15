@@ -1,0 +1,428 @@
+---
+title: "February 2019: More discogging"
+author: ''
+date: '2019-03-14'
+slug: more-discogs
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, message = FALSE, warning = FALSE)
+```
+
+(Yes, I know it's March. This is a delayed followup for the February edition of my #mememe2019 project. It involves *even more* (and sometimes painful) data cleaning. If you just want to see some actual visualizations, head over to [part three](/posts/visualizing-discogs).)
+
+In one of my [last posts](/posts/discog-purrr/), I went through painstaking lengths to understand and tidy the nested lists that the discogs API returns. Now, it's time to actually do something with the data!
+
+I'm interested in a few things about my music collection, specifically:
+
+* the style of music,
+* the year it came out,
+* where it came from.
+
+The data I have so far, unfortunately, doesn't contain any of that information! So we need to go back to `discogger` for more.
+
+Here's what I have so far:
+
+```{r}
+library(dplyr)
+library(here)
+
+basic_information_tidy <- readRDS(here("static", "data", "discogger", "basic_information_tidy.rds"))
+
+basic_information_tidy
+```
+
+First, I'll use `release_id` to go get more information about each release, using the `discogger::discogs_release()` function.
+
+According to the [discogs API documentation](https://www.discogs.com/developers/#page:home,header:home-rate-limiting), "Requests are throttled by the server by source IP to 60 per minute for authenticated requests, and 25 per minute for unauthenticated requests, with some exceptions." I'll need to write my code in a way that handles this rate limit, instead of just failing!
+
+A good way to do that is using the `insistently()` function in the `purrr` package. `insistently` modifies a function to make it retry a certain number of times if there's an error.
+
+It does this by using a `rate` object that determines the number of retries and the time to wait between each. I'm going to use the `rate_delay()` helper function. You just tell `rate_delay()` how long to wait (the `pause` argument) and how many times to try (`max_times`).
+
+Since the API limits you by requests per minute, I'll set `pause` to 60 (seconds) and `max_times` to 2 -- if we can't get it after two tries, then it's probably an actual error, and not rate limiting.
+
+```{r}
+library(purrr)
+library(discogger)
+
+insistently_discogs_release <- insistently(discogs_release,
+                                           rate = rate_delay(pause = 60, max_times = 2))
+```
+
+Now, if there *is* still an error after dealing with the rate limiting, I don't want the whole thing to fail! So in addition to `insistently()`, I'm making the function work *safely* by using `safely()`, which modifies the function to return both a `result` and an `error` every time. If there's no error, then `result` is not `NULL` and `error` is `NULL`. If there is an error, then the opposite is true. And actually, I'm going to modify `safely()` a bit so it returns `NA` (a missing value indicator) instead of `NULL` (a literal null object).
+
+```{r}
+safely_insistently_discogs_release <- safely(insistently_discogs_release,
+                                             otherwise = NA)
+```
+
+Now that that's done, I can actually use this safe, insistent function to get the release information for every release in my collection!
+
+```{r, eval=FALSE}
+release_data <- basic_information_tidy %>%
+  select(release_id) %>%
+  mutate(data = map(release_id, safely_insistently_discogs_release))
+```
+
+```{r, include=FALSE}
+#saveRDS(release_data, here("static", "data", "discogger", "release_data.rds"))
+release_data <- readRDS(here("static", "data", "discogger", "release_data.rds"))
+```
+
+Looking at at what my function returned, I can see that `data` is a list that contains `result` and `error`.
+
+```{r}
+release_data %>%
+  slice(1) %>%
+  str(max.level = 3)
+```
+
+Let's pull them out! And, like before, the actual release information is in an element of the `result` list called `content` (the rest just contains information about the API call).
+
+Note that I've set the `.default` argument in the `map()` functions to `NA` -- otherwise, they return a `NULL`, which is way harder to work with! Would it be a blog post using purrr if I didn't thank Jenny Bryan for telling me how to do something? `r emo::ji("pray")`
+
+```{r}
+release_data <- release_data %>%
+  mutate(result = map(data, "result", .default = NA),
+         error = map(data, "error", .default = NA),
+         release_content = map(result, "content", .default = NA))
+
+release_data
+```
+
+I'm not going to go as wild with the nested lists today, even though they're *definitely there*, because 1) I think we've all learned our lesson, and 2) I really don't need that much information.
+
+All I want is information on the music style and the year it was released, which are at the top level:
+
+```{r}
+release_data %>%
+  slice(1) %>%
+  pull(release_content) %>%
+  str(max.level = 2)
+```
+
+We can grab those pretty easily, phew! And chuck everything else out. Again, I'm setting the default to be `NA` because those values might not be there for every release. If they're not, I don't want to deal with `NULL`s!
+
+```{r}
+release_data <- release_data %>%
+  mutate(year = map_dbl(release_content, "year", .default = NA_integer_),
+         styles = map(release_content, "styles", .default = NA)) %>%
+  select(-data, -result, -error, -release_content)
+```
+
+Like some things were in my last blog post, `styles` is a list of lists:
+
+```{r}
+release_data
+```
+
+```{r}
+release_data %>%
+  slice(1) %>%
+  pull(styles) %>%
+  str()
+```
+
+when really I just want a list of character vectors.
+
+```{r}
+release_data <- release_data %>%
+  mutate(styles = map(styles, ~ unlist(.), .default = NA))
+
+release_data %>%
+  slice(1) %>%
+  pull(styles) %>%
+  str()
+```
+
+Awesome!
+
+Except, for my purposes I actually only want *one* style per release. I know. So, I looked through them and came up with a prioritized list of styles - for example, if a release has both "hardcore" and "punk," I'd take "hardcore" as the style. 
+
+```{r}
+style_priority <- function(style){
+  case_when(style %in% c("New Wave", "Hardcore") ~ 1,
+            style %in% c("Indie Rock", "Shoegaze", "Stoner Rock", "Black Metal", "Indie Pop") ~ 2,
+            style %in% c("Experimental", "Post-Punk", "Grunge", "Synth-pop") ~ 3,
+            style %in% c("Punk") ~ 4,
+            TRUE ~ 5)
+}
+
+library(tidyr)
+
+release_data <- release_data %>%
+  unnest() %>%
+  mutate(style_priority = style_priority(styles)) %>%
+  group_by(release_id) %>%
+  filter(style_priority == min(style_priority)) %>%
+  ungroup() %>%
+  select(-style_priority) %>%
+  rename(style = styles)
+```
+
+Some releases are missing a `style`, so I'll manually put what I think it should be.
+
+```{r}
+release_data <- release_data %>%
+  mutate(style = case_when(release_id %in% c(9477305) ~ "Post-Punk",
+                           release_id %in% c(6022854, 4465008) ~ "Indie Rock",
+                           release_id %in% c(7018322) ~ "Indie Pop",
+                           release_id %in% c(2819870, 4298516) ~ "Hip Hop",
+                           TRUE ~ style))
+
+release_data
+```
+
+Perfect!
+
+Next, I want to know *where* each release came from (i.e., where the artists are from), so I have to use the API to look up information by artist.
+
+Again, I'm creating a *safe* and *insistent* version of the appropriate `discogger` function to do so!
+
+I'm also excluding the id `194` because it's just a placeholder ID used any time an artist on a release is "Various", and doesn't have an artists page -- no point in hitting the API for results I know aren't there!
+
+```{r}
+library(tidyr)
+```
+
+```{r, cache=TRUE}
+safely_insistently_discogs_artist <- safely(insistently(discogs_artist,
+                                                        rate = rate_delay(pause = 60,
+                                                                          max_times = 2)),
+                                            otherwise = NA)
+
+artist_data <- basic_information_tidy %>%
+  select(artists_id) %>%
+  unnest() %>%
+  distinct() %>%
+  filter(artists_id != 194) %>%
+  mutate(data = map(artists_id, safely_insistently_discogs_artist),
+         result = map(data, "result", .default = NA),
+         error = map(data, "error", .default = NA),
+         artist_content = map(result, "content", .default = NA))
+```
+
+```{r, include=FALSE}
+saveRDS(artist_data, here("static", "data", "discogger", "artist_data.rds"))
+artist_data <- readRDS(here("static", "data", "discogger", "artist_data.rds"))
+```
+
+Errors?
+
+```{r}
+artist_data %>%
+  filter(!is.na(error))
+```
+
+Nice! If I didn't modify the function to run insistently and safely, there would have been lots of errors. Believe me, I tried. `r emo::ji("sweat_smile")`
+
+All I want from the artist data are the profile and the name, which are pretty easy to grab.
+
+```{r}
+artist_data <- artist_data %>%
+  mutate(profile = map_chr(artist_content, "profile", .default = NA_character_),
+         artist_name = map_chr(artist_content, "name", .default = NA_character_)) %>%
+  select(artist_id = artists_id, profile, artist_name)
+
+artist_data
+```
+
+Now I want to do two things. The first is actually get the artist name -- when there's a duplicate artist name on discogs, they put a number in parentheses at the end of the name. I don't want that!
+
+```{r}
+artist_data <- artist_data %>%
+  separate(artist_name, into = "artist_name", sep = " \\([0-9]")
+
+artist_data
+```
+
+Good!
+
+The next is a little more... complicated.
+
+The band profile tends to take the format "... band from [location]", with information about the location from "from" to the next period *or* to the end of the string. To extract this, I'm using a regex that I don't totally understand, but that my coworker Sharleen has [blogged about](https://sharleenw.rbind.io/post/hamilton_cbc_part_1/hamilton-christmas-bird-count-part-1/) (and told me about when I bet she couldn't do it even though she had *already told me she did it* `r emo::ji("grimace")`).
+
+```{r}
+library(stringr)
+
+artist_data <- artist_data %>%
+  mutate(location = coalesce(str_extract(profile, "(?<=from\\s).+?(?=\\.)"),
+                             str_extract(profile, "(?<=from).*"))) %>%
+  separate(location, into = c("city", "province", "country"), sep = "[:punct:]") %>%
+  mutate_at(vars(city, province, country), str_trim)
+
+artist_data
+```
+
+It looks ok, but the data isn't super consistent in terms of whether it includes a province, country, both, neither, etc. To try and figure out what belongs where, if there isn't an entry in `country` then I'm going to look at `province` and compare it to a list of countries from the `maps` package. If it's in there, then I'll set `country` to that. Capeesh?
+
+```{r}
+library(maps)
+
+countries <- world.cities %>%
+  pull(country.etc) %>%
+  unique()
+
+artist_data <- artist_data %>%
+  mutate(province_is_country = (is.na(country) | country == "") & province %in% countries,
+         country = ifelse(province_is_country, province, country),
+         province = ifelse(province_is_country, NA_character_, province)) %>%
+  select(-province_is_country)
+
+artist_data
+```
+
+That's starting to look better! But some artists don't even have a city:
+
+```{r}
+artist_data %>%
+  filter(is.na(city))
+```
+
+and for those whose profile *isn't* just "",
+
+```{r}
+artist_data %>%
+  filter(is.na(city) & profile != "") %>%
+  pull(profile)
+```
+
+Well, it's because their profile's *don't* follow the format "... band from [location]"! That's ok, I'm not too proud to manually enter data. I'm going to combine the manually entered locations with the ones that I derived (prioritizing the manual ones to fix a few typos).
+
+```{r}
+manual_locations <- readr::read_csv(here("static", "data", "discogger", "manual_locations.csv"))
+
+artist_data <- artist_data %>%
+  left_join(manual_locations, 
+            by = "artist_name",
+            suffix = c("_discogs", "_manual")) %>%
+  mutate(city = coalesce(city_manual, city_discogs),
+         city = ifelse(city == "New York City", "New York", city),
+         province = coalesce(province_manual, province_discogs),
+         country = coalesce(country_manual, country_discogs)) %>%
+  select(-ends_with("_discogs"), -ends_with("_manual"), -profile)
+```
+
+My goal (which I just realized I haven't mentioned yet!) is to get the latitude and longitude of the city that each artist is from, hence wanting the city and, where possible, the province/state and country. So again, I'm using the `world.cities` data set from `maps`!
+
+```{r}
+artist_locations <- artist_data %>%
+  left_join(world.cities %>%
+              select(-pop, -capital),
+            by = c("city" = "name"))
+```
+
+Obviously some city names exist more than once in the world. In those cases (where there's duplicate entries of a band in `artist_locations`, I'll keep cases where `country` and `country.etc` match *or* where we don't have any information on the country.
+
+```{r}
+artist_locations <- artist_locations %>%
+  add_count(artist_id) %>%
+  filter((n > 1 & (country == country.etc | is.na(country))) | 
+           n == 1) %>%
+  select(-n)
+```
+
+Let's see who we still have too much (yet not enough!) information on:
+
+```{r}
+library(janitor)
+
+artist_locations %>%
+  get_dupes(artist_id) %>%
+  count(city)
+```
+
+Most of these are dupes because the city exists in multiple countries, but we don't have country information on the artist. I'll put this in manually, then again filter for where `country = country.etc`
+
+```{r}
+artist_locations <- artist_locations %>%
+  mutate(country = case_when(city %in% c("Birmingham", "Boston", "Denton", "San Diego", "San Jose", "Washington", "Portland", "Kansas City", "Springfield", "Richmond") ~ "USA",
+                             city == "Dublin" ~ "Ireland",
+                             city == "Manchester" ~ "UK",
+                             TRUE ~ country)) %>%
+  add_count(artist_id) %>%
+  filter((n > 1 & (country == country.etc | is.na(country))) | 
+           n == 1) %>%
+  select(-n)
+```
+
+Are we there yet? `r emo::ji("tired")`
+
+```{r}
+artist_locations %>%
+  get_dupes(artist_id)
+```
+
+These last few are city names that are in more than one *state* in the US. I want Kansas City, MO (not KS), Portland OR, Springfield IL, and Richmond VA. Of course, the *state* wasn't in `world.cities`. I have to go to `us.cities` for that.
+
+```{r}
+head(us.cities)
+```
+
+It needs some cleaning too `r emo::ji("roll_eyes")`
+
+```{r}
+dupe_us_cities <- us.cities %>%
+  mutate(name = str_trim(str_replace(name, country.etc, "")),
+         keep = (name == "Portland" & country.etc == "OR") | 
+           (name == "Kansas City" & country.etc == "MO") | 
+           (name == "Springfield" & country.etc == "IL") |
+           (name == "Richmond" & country.etc == "VA")) %>%
+  filter(keep) %>%
+  select(city = name, lat, long)
+```
+
+Now, I'll just keep the *correct* cities for artists with duplicate entries.
+
+```{r}
+artist_locations <- artist_locations %>%
+  get_dupes(artist_id) %>%
+  inner_join(dupe_us_cities) %>%
+  bind_rows(
+    artist_locations %>%
+      add_count(artist_id) %>%
+      filter(n == 1) %>%
+      select(-n)
+  )
+
+artist_locations %>% 
+  get_dupes(artist_id)
+```
+
+`r emo::ji("sweat_smile")`
+
+```{r}
+artist_locations %>% 
+  filter(is.na(lat))
+```
+
+`r emo::ji("sweat_smile")` `r emo::ji("sweat_smile")`
+
+One last thing, I promise -- I want to know whether each vinyl release is a 7" or a 12".
+
+```{r}
+basic_information_tidy <- basic_information_tidy %>%
+  mutate(format = case_when(format_name == "Cassette" ~ "Tape",
+                                    str_detect(format_description, "LP|12") ~ '12"',
+                                    str_detect(format_description, "7") ~ '7"')) %>%
+  select(-format_name, -format_description)
+```
+
+Now I can put together my collection with information about the release and the artist!
+
+```{r}
+collection_data <- basic_information_tidy %>%
+  unnest() %>%
+  left_join(release_data, by = "release_id") %>%
+  left_join(artist_locations, by = c("artists_id" = "artist_id")) %>%
+  select(release_id, title, format, artist_id = artists_id, artist_name, year, style, city, country = country.etc, lat, long)
+
+collection_data
+```
+
+```{r, include=FALSE}
+saveRDS(collection_data, here("static", "data", "discogger", "collection_data.rds"))
+```
+
+In the words of Elle Woods, "we did it!" If you want to see what I actually do with this data, head over to [part three](/posts/visualizing-discogs).
