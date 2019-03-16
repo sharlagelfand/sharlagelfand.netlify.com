@@ -374,7 +374,7 @@ Interestingly enough, "Unauthorized at Track Level" still doesn't crack the top 
 
 I hope I've managed to instill some good approaches around working with a new data set, specifically:
 
-* Be weary of diving right into results
+* Be wary of diving right into results
 * Efficiently visualize your data to verify or build mental models
 * Be liberal with rabbit holes, investigations, and edge cases
 * Codify your assumptions so that it is them, not you, who fail spectacularly
