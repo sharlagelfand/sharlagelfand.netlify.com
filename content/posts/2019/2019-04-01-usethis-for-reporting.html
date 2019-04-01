@@ -1,0 +1,658 @@
+---
+title: usethis for reporting
+author: ''
+date: '2019-04-01'
+slug: usethis-for-reporting
+---
+
+
+
+<p>👋 Hi! Over the last few weeks I have become totally enamored with the <a href="https://usethis.r-lib.org/"><code>usethis</code> package</a>. It is really useful. Seriously – use it. I figured it was time to write about just a few of the amazing things this package can do, in the context of creating your <em>own</em> R package for repetitive reporting.</p>
+<p>This is really not meant to be an excellent resource on how to create an R package. There are many other places you can go for that, so sorry (🇨🇦) for being too-brief in some parts and waaayyy too lengthy in others.</p>
+<div id="the-report" class="section level3">
+<h3>The report</h3>
+<p>Let’s say I work at the <a href="http://www.ttc.ca/">TTC</a> and have to create a report on the top 10 causes for delays in January 2019.</p>
+<pre class="r"><code>library(readxl)
+
+january_delays &lt;- read_excel(here::here(&quot;static&quot;, &quot;data&quot;, &quot;usethis-reports&quot;, &quot;Subway_&amp;_SRT_Logs_January_2019.xlsx&quot;))
+
+january_delays</code></pre>
+<pre><code># A tibble: 1,871 x 10
+   Date                Time  Day   Station Code  `Min Delay` `Min Gap`
+   &lt;dttm&gt;              &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;       &lt;dbl&gt;     &lt;dbl&gt;
+ 1 2019-01-01 00:00:00 01:08 Tues… YORK M… PUSI            0         0
+ 2 2019-01-01 00:00:00 02:14 Tues… ST AND… PUMST           0         0
+ 3 2019-01-01 00:00:00 02:16 Tues… JANE S… TUSC            0         0
+ 4 2019-01-01 00:00:00 02:27 Tues… BLOOR … SUO             0         0
+ 5 2019-01-01 00:00:00 03:03 Tues… DUPONT… MUATC          11        16
+ 6 2019-01-01 00:00:00 03:08 Tues… EGLINT… EUATC          11        16
+ 7 2019-01-01 00:00:00 03:09 Tues… DUPONT… EUATC           6        11
+ 8 2019-01-01 00:00:00 03:26 Tues… ST CLA… EUATC           4         9
+ 9 2019-01-01 00:00:00 03:37 Tues… KENNED… TUMVS           0         0
+10 2019-01-01 00:00:00 08:04 Tues… DAVISV… MUNOA           5        10
+# … with 1,861 more rows, and 3 more variables: Bound &lt;chr&gt;, Line &lt;chr&gt;,
+#   Vehicle &lt;dbl&gt;</code></pre>
+<p>I have to clean the data a little (you might expect this from <a href="/posts/new-data-strategies">my post using this data before</a>).</p>
+<p>First, I clean the column names.</p>
+<pre class="r"><code>library(dplyr)
+library(janitor)
+
+january_delays &lt;- january_delays %&gt;%
+  clean_names()</code></pre>
+<p>Then I want to check that line is one of YU, BD, SHP, SRT</p>
+<pre class="r"><code>library(assertr)
+
+january_delays %&gt;%
+  assert(in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;), line)</code></pre>
+<pre><code>Column &#39;line&#39; violates assertion &#39;in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;)&#39; 37 times
+    verb redux_fn                        predicate column index value
+1 assert       NA in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;)   line    42 YU/BD
+2 assert       NA in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;)   line   112 YU/BD
+3 assert       NA in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;)   line   161 YU/BD
+4 assert       NA in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;)   line   204 YU/BD
+5 assert       NA in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;)   line   232 YU/BD
+  [omitted 32 rows]</code></pre>
+<pre><code>Error: assertr stopped execution</code></pre>
+<p>Ok, nope! So I’ll clean up cases where that’s not true.</p>
+<pre class="r"><code>january_delays %&gt;%
+  filter(!(line %in% c(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;))) %&gt;%
+  count(line)</code></pre>
+<pre><code># A tibble: 7 x 2
+  line        n
+  &lt;chr&gt;   &lt;int&gt;
+1 &lt;NA&gt;        7
+2 999         1
+3 B/D         1
+4 BD LINE     1
+5 YU/ BD      1
+6 YU/BD      30
+7 YUS         3</code></pre>
+<p>And recode where possible.</p>
+<pre class="r"><code>january_delays &lt;- january_delays %&gt;%
+  mutate(line = case_when(line %in% c(&quot;B/D&quot;, &quot;BD LINE&quot;) ~ &quot;BD&quot;,
+                          line == &quot;YUS&quot; ~ &quot;YU&quot;,
+                          TRUE ~ line))</code></pre>
+<p>Then finally exclude cases where it’s still not true.</p>
+<pre class="r"><code>january_delays &lt;- january_delays %&gt;%
+  filter(line %in% c(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;))</code></pre>
+<p>Now the data looks good! But, we only have the <em>code</em> of the delay. There is another data set with the actual description.</p>
+<pre class="r"><code>delay_codes &lt;- read_excel(here::here(&quot;static&quot;, &quot;data&quot;, &quot;usethis-reports&quot;, &quot;Subway &amp; SRT Log Codes.xlsx&quot;)) %&gt;%
+  clean_names()</code></pre>
+<p>It looks a little weird.</p>
+<pre class="r"><code>visdat::vis_dat(delay_codes)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<pre class="r"><code>delay_codes</code></pre>
+<pre><code># A tibble: 129 x 7
+      x1 sub_rmenu_code code_descriptio… x4       x5 srt_rmenu_code
+   &lt;dbl&gt; &lt;chr&gt;          &lt;chr&gt;            &lt;lgl&gt; &lt;dbl&gt; &lt;chr&gt;         
+ 1     1 EUAC           Air Conditioning NA        1 ERAC          
+ 2     2 EUAL           Alternating Cur… NA        2 ERBO          
+ 3     3 EUATC          ATC RC&amp;S Equipm… NA        3 ERCD          
+ 4     4 EUBK           Brakes           NA        4 ERCO          
+ 5     5 EUBO           Body             NA        5 ERDB          
+ 6     6 EUCA           Compressed Air   NA        6 ERDO          
+ 7     7 EUCD           Consequential D… NA        7 ERHV          
+ 8     8 EUCH           Chopper Control  NA        8 ERLT          
+ 9     9 EUCO           Couplers         NA        9 ERLV          
+10    10 EUDO           Door Problems -… NA       10 ERME          
+# … with 119 more rows, and 1 more variable: code_description_7 &lt;chr&gt;</code></pre>
+<p>Because, for some reason, the main subway codes are separate from the SRT codes. It’s ok, I can put them together.</p>
+<pre class="r"><code>delay_codes &lt;- delay_codes  %&gt;%
+  select(code = sub_rmenu_code, description = code_description_3) %&gt;%
+  remove_empty(&quot;rows&quot;) %&gt;%
+  bind_rows(
+    delay_codes  %&gt;%
+              select(code = srt_rmenu_code, description = code_description_7) %&gt;%
+              remove_empty(&quot;rows&quot;)
+  )
+
+delay_codes</code></pre>
+<pre><code># A tibble: 200 x 2
+   code  description                               
+   &lt;chr&gt; &lt;chr&gt;                                     
+ 1 EUAC  Air Conditioning                          
+ 2 EUAL  Alternating Current                       
+ 3 EUATC ATC RC&amp;S Equipment                        
+ 4 EUBK  Brakes                                    
+ 5 EUBO  Body                                      
+ 6 EUCA  Compressed Air                            
+ 7 EUCD  Consequential Delay (2nd Delay Same Fault)
+ 8 EUCH  Chopper Control                           
+ 9 EUCO  Couplers                                  
+10 EUDO  Door Problems - Faulty Equipment          
+# … with 190 more rows</code></pre>
+<p>Then, I’ll combine the delays with the codes so we actually have the corresponding descriptions.</p>
+<pre class="r"><code>january_delays &lt;- january_delays %&gt;%
+  left_join(delay_codes,
+            by = &quot;code&quot;)</code></pre>
+<p>And check that all codes in the data have a corresponding description.</p>
+<pre class="r"><code>january_delays %&gt;%
+  assert(not_na, description)</code></pre>
+<pre><code>Column &#39;description&#39; violates assertion &#39;not_na&#39; 22 times
+    verb redux_fn predicate      column index value
+1 assert       NA    not_na description   134  &lt;NA&gt;
+2 assert       NA    not_na description   212  &lt;NA&gt;
+3 assert       NA    not_na description   224  &lt;NA&gt;
+4 assert       NA    not_na description   254  &lt;NA&gt;
+5 assert       NA    not_na description   299  &lt;NA&gt;
+  [omitted 17 rows]</code></pre>
+<pre><code>Error: assertr stopped execution</code></pre>
+<p>Nope!</p>
+<pre class="r"><code>january_delays %&gt;%
+  filter(is.na(description)) %&gt;%
+  count(code)</code></pre>
+<pre><code># A tibble: 3 x 2
+  code      n
+  &lt;chr&gt; &lt;int&gt;
+1 MUNCA    18
+2 PUEO      2
+3 TRNCA     2</code></pre>
+<p>So, what are these codes? Honestly, I’m just going to google them.</p>
+<p>I found an old version of the TTC delays codes data set that has two of these in it (weird that this one doesn’t). So, I’m going to update the description with those. For the one that’s still unknown, I’ll mark it as so. It only appears twice, so I doubt one of our top causes of delay will be “Delay Description Unknown” anyways.</p>
+<pre class="r"><code>january_delays &lt;- january_delays %&gt;%
+  mutate(description = case_when(code == &quot;MUNCA&quot; ~ &quot;No Collector Available - Non E.S.A. Related&quot;,
+                                 code == &quot;TRNCA&quot; ~ &quot;No Collector Available&quot;,
+                                 code == &quot;PUEO&quot; ~ &quot;Delay Description Unknown&quot;,
+                                 TRUE ~ description))</code></pre>
+<p>Finally, I’m ready to look at the top 5 causes for delays for each line.</p>
+<pre class="r"><code>library(ggplot2)
+
+january_delays %&gt;%
+  group_by(line, description) %&gt;%
+  summarise(delays = sum(min_delay)) %&gt;%
+  arrange(-delays) %&gt;%
+  slice(1:5) %&gt;%
+  ggplot(aes(x = description,
+             y = delays)) +
+  geom_col() + 
+  scale_x_discrete(&quot;&quot;) +
+  scale_y_continuous(&quot;Delay (minutes)&quot;) + 
+  ggtitle(&quot;Top 10 causes for delay, by line&quot;,
+          subtitle = &quot;January 2019&quot;) + 
+  coord_flip() + 
+  facet_wrap(vars(line),
+             nrow = 1) + 
+  theme_minimal()</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>🤘</p>
+</div>
+<div id="repetitive-reporting-usethis" class="section level3">
+<h3>repetitive reporting – usethis!</h3>
+<p>Now imagine I have to create that report every month. Rather than finding the data cleaning script and report script and delay code cleaning script month after month, let’s put it into a package.</p>
+<pre class="r"><code>usethis::create_package(&quot;~/delaysreport&quot;)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-create_package.png" /></p>
+<p>The package directory looks like this:</p>
+<pre><code>├── DESCRIPTION
+├── NAMESPACE
+├── R
+└── delaysreport.Rproj</code></pre>
+<p>(ps – I’m using the 💣 <code>fs::dir_tree()</code> to get these directory trees)</p>
+<p>And my <code>DESCRIPTION</code> file is not so informative:</p>
+<pre><code>Package: delaysreport
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = &quot;First&quot;,
+           family = &quot;Last&quot;,
+           role = c(&quot;aut&quot;, &quot;cre&quot;),
+           email = &quot;first.last@example.com&quot;,
+           comment = c(ORCID = &quot;YOUR-ORCID-ID&quot;))
+Description: What the package does (one paragraph).
+License: What license it uses
+Encoding: UTF-8
+LazyData: true</code></pre>
+<p>So I use more usethis to add to it.</p>
+<pre class="r"><code>usethis::use_description(fields = list(Title = &quot;TTC delays report&quot;,
+                                       `Authors@R` = &#39;person(&quot;Sharla&quot;, &quot;Gelfand&quot;, 
+                                       email = &quot;sharla.gelfand@gmail.com&quot;, 
+                                       role = c(&quot;aut&quot;, &quot;cre&quot;))&#39;, 
+                                       Description = &quot;Monthly report on top 5 causes for delay for each TTC line.&quot;))</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-description.png" /></p>
+<p>And to give it a license.</p>
+<pre class="r"><code>usethis::use_mit_license(&quot;Sharla Gelfand&quot;)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-license.png" /></p>
+<p>That’s better!</p>
+<pre><code>Package: delaysreport
+Title: TTC delays report
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = &quot;Sharla&quot;,
+           family = &quot;Gelfand&quot;,
+           role = c(&quot;aut&quot;, &quot;cre&quot;),
+           email = &quot;sharla.gelfand@gmail.com&quot;)
+Description: Monthly report on top 5 causes for delay for each
+    TTC line.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true</code></pre>
+<p>My goal with this package is to be able to go to it every month and not really have to re-remember how to do my analysis.</p>
+<p>One thing that I’ll definitely need every month is the data set of delay codes and their corresponding descriptions. So, I’m actually going to make that a data set available <em>in the package</em>, rather than an excel file I have to clean every month (and <em>even rather than</em> the better version of that which I often do, aka “an .rds file saved somewhere that I always have to remember and read in”).</p>
+<p>In R package development the raw data file, and the script that’s used to clean and save it, typically go in the <code>data-raw/</code> folder. Of course, <code>usethis</code> has a function for creating that.</p>
+<pre class="r"><code>usethis::use_data_raw()</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-data_raw.png" /></p>
+<p>I really, really love that this tells you what to do next! So, I’m putting the .xlsx file into <code>data-raw/</code> and creating the following script to go along with it.</p>
+<pre class="r"><code>library(dplyr)
+library(readxl)
+library(janitor)
+
+delay_codes &lt;- read_excel(&quot;data-raw/Subway &amp; SRT Log Codes.xlsx&quot;) %&gt;%
+  clean_names()
+
+delay_codes &lt;- delay_codes  %&gt;%
+  select(code = sub_rmenu_code, description = code_description_3) %&gt;%
+  remove_empty(&quot;rows&quot;) %&gt;%
+  bind_rows(
+    delay_codes  %&gt;%
+      select(code = srt_rmenu_code, description = code_description_7) %&gt;%
+      remove_empty(&quot;rows&quot;)
+  )
+
+# Add codes that are in data, but not code lookup
+
+missing_codes &lt;- tribble(
+  ~code, ~description,
+  &quot;MUNCA&quot;, &quot;No Collector Available - Non E.S.A. Related&quot;,
+  &quot;TRNCA&quot;, &quot;No Collector Available&quot;,
+  &quot;PUEO&quot;, &quot;Delay Description Unknown&quot;
+)
+
+delay_codes &lt;- delay_codes %&gt;%
+  bind_rows(missing_codes)
+
+usethis::use_data(delay_codes)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-use_data.png" /></p>
+<p>Now my package directory looks like this:</p>
+<pre class="comment"><code>├── DESCRIPTION
+├── LICENSE ** (from the license step)
+├── LICENSE.md ** (license step)
+├── R
+├── data **
+│   └── delay_codes.rda **
+├── data-raw ** 
+│   ├── Subway &amp; SRT Log Codes.xlsx **
+│   └── delay_codes.R ** 
+├── delaysreport.Rproj</code></pre>
+<p>(psst, ** indicates what’s new in the directory at this step!)</p>
+<p>And when I build my package (command + shift + L, command + shift + D, and command + shift + B are your best friends), <code>delay_codes</code> is actually an object available in the package!</p>
+<pre class="r"><code>delaysreport::delay_codes</code></pre>
+<pre><code># A tibble: 203 x 2
+   code  description                               
+   &lt;chr&gt; &lt;chr&gt;                                     
+ 1 EUAC  Air Conditioning                          
+ 2 EUAL  Alternating Current                       
+ 3 EUATC ATC RC&amp;S Equipment                        
+ 4 EUBK  Brakes                                    
+ 5 EUBO  Body                                      
+ 6 EUCA  Compressed Air                            
+ 7 EUCD  Consequential Delay (2nd Delay Same Fault)
+ 8 EUCH  Chopper Control                           
+ 9 EUCO  Couplers                                  
+10 EUDO  Door Problems - Faulty Equipment          
+# … with 193 more rows</code></pre>
+<p>Very cool.</p>
+<p>(by the way, we get pretty tibble printing here because I have <code>dplyr</code> loaded. If you want to avoid ugly <code>data.frame</code> printing for tibbles in your package, look into the <a href="https://usethis.r-lib.org/reference/use_tibble.html"><code>usethis::use_tibble()</code> function</a>)</p>
+<p>Now that we’ve done that, I’m going to work on some functions. The first one I’m going to write sets up the analysis for the month.</p>
+<p>And when this function is run (say, <code>setup(report_month = &quot;January&quot;, report_year = 2019</code>), I want it to create a file that looks something like this.</p>
+<pre class="r"><code># Top 5 delays by TTC Line for January 2019
+
+# Step 1: Download the data.
+# Go to https://portal0.cf.opendata.inter.sandbox-toronto.ca/dataset/ttc-subway-delay-data/ 
+# Download this month&#39;s data. Save it in /reports/2019/January/
+# Name it delays_January_2019_raw.xlsx
+
+# Step 2: Clean the data
+delaysreport::delays_data_cleaning(report_month = &quot;January&quot;,
+                            report_year = &quot;2019&quot;)
+
+# Step 3: Run the report!
+# Set render to TRUE if you would like the report to render automatically; keep it as FALSE if you want the .Rmd file to open and to render it yourself.
+delaysreport::delays_report(report_month = &quot;January&quot;,
+                            report_year = &quot;2019&quot;,
+                            render = FALSE)</code></pre>
+<p>in a folder that makes sense. Let’s say in <code>/reports/2019/January/</code>. It doesn’t matter yet what each of these functions do. We’ll make them later.</p>
+<p>A function that already does something like this is <code>usethis::use_test()</code>. If you look into its <a href="https://github.com/r-lib/usethis/blob/master/R/test.R#L28">source code</a>, it’s really not that complex – but it does use a lot of cool helper functions!</p>
+<p>So I’m writing my <code>setup</code> function to emulate that.</p>
+<p>I call <code>usethis::use_r()</code> to create a file in the package for this function.</p>
+<pre class="r"><code>usethis::use_r(&quot;setup&quot;)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-use_r.png" /></p>
+<p>And start with this:</p>
+<pre class="r"><code>setup &lt;- function(report_month, report_year){
+  usethis::use_directory(fs::path(&quot;reports&quot;, report_year, report_month))
+}</code></pre>
+<p><code>usethis::use_directory()</code> (which is actually called as part of <code>usethis::use_testthat()</code>, so we don’t see it in the linked source code) creates a directory if it doesn’t already exist.</p>
+<p>If we run this, as is, this is what happens:</p>
+<pre class="r"><code>setup(&quot;January&quot;, &quot;2019&quot;)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-setup.png" /></p>
+<p>and the directory looks as follows:</p>
+<pre><code>├── DESCRIPTION
+├── LICENSE
+├── LICENSE.md
+├── R
+│   └── setup.R **
+├── data
+│   └── delay_codes.rda
+├── data-raw
+│   ├── Subway &amp; SRT Log Codes.xlsx
+│   └── delay_codes.R
+├── delaysreport.Rproj
+└── reports **
+    └── 2019 **
+        └── January **</code></pre>
+<p>So far this just creates the directory to work in.</p>
+<p>To create that setup file with instructions, I create a <em>template</em> in <code>inst/templates</code> and call that. The template looks mostly exactly like the file I described above, just with lots of squiggly brackets.</p>
+<pre class="r"><code># Top 5 delays by TTC Line for {{{ report_month }}} {{{ report_year }}}
+
+# Step 1: Download the data.
+# Go to https://portal0.cf.opendata.inter.sandbox-toronto.ca/dataset/ttc-subway-delay-data/
+# Download this month&#39;s data. Save it in /reports/{{{ report_year }}}/{{{ report_month }}}/
+# Name it delays_{{{ report_month }}}_{{{ report_year }}}_raw.xlsx
+
+# Step 2: Clean the data
+delaysreport::data_cleaning(report_month = &quot;{{{ report_month }}}&quot;,
+                            report_year = &quot;{{{ report_year }}}&quot;)
+
+# Step 3: Run the report!
+# Set render to TRUE if you would like the report to render automatically; keep it as FALSE if you want the .Rmd file to open and to render it yourself.
+delaysreport::delays_report(report_month = &quot;{{{ report_month }}}&quot;,
+                            report_year = &quot;{{{ report_year }}}&quot;,
+                            render = FALSE)</code></pre>
+<p>Now the directory looks like this:</p>
+<pre><code>├── DESCRIPTION
+├── LICENSE
+├── LICENSE.md
+├── R
+│   └── setup.R
+├── data
+│   └── delay_codes.rda
+├── data-raw
+│   ├── Subway &amp; SRT Log Codes.xlsx
+│   └── delay_codes.R
+├── delaysreport.Rproj
+├── inst **
+│   └── templates **
+│       └── setup.R **
+└── reports
+    └── 2019
+        └── January</code></pre>
+<p>and when the package is built, the template is available to be used! I can enhance my <code>setup</code> function to actually use it (and add a bit of documentation)</p>
+<pre class="r"><code>#&#39; Set up delays report
+#&#39;
+#&#39; @description Set up delays report, with instructions on how to get the data and helper functions to clean the data and write the report.
+#&#39;
+#&#39; @param report_month Month of report
+#&#39; @param report_year Year of report
+#&#39;
+#&#39; @export
+setup &lt;- function(report_month, report_year){
+  report_path &lt;- fs::path(&quot;reports&quot;, report_year, report_month)
+  usethis::use_directory(report_path)
+
+  usethis::use_template(template = &quot;setup.R&quot;,
+                        save_as = paste0(report_path, &quot;/01-setup.R&quot;),
+                        data = list(report_month = report_month,
+                                    report_year = report_year),
+                        package = &quot;delaysreport&quot;,
+                        open = TRUE)
+}</code></pre>
+<p>Now if I run that function</p>
+<pre class="r"><code>setup(&quot;January&quot;, &quot;2019&quot;)</code></pre>
+<p>it creates a setup file for this report.</p>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-setup-2.png" /></p>
+<p>And my directory looks like this:</p>
+<pre><code>├── DESCRIPTION
+├── LICENSE
+├── LICENSE.md
+├── NAMESPACE **
+├── R
+│   └── setup.R
+├── data
+│   └── delay_codes.rda
+├── data-raw
+│   ├── Subway &amp; SRT Log Codes.xlsx
+│   └── delay_codes.R
+├── delaysreport.Rproj
+├── inst
+│   └── templates
+│       └── setup.R
+├── man **
+│   └── setup.Rd **
+└── reports
+    └── 2019
+        └── January
+            └── setup.R **</code></pre>
+<p>I also have to tell my package that it should have <code>usethis</code> and <code>fs</code> as a dependency, aka to use my function you reallyyy need to have <code>usethis</code> and <code>fs</code> installed too.</p>
+<pre class="r"><code>usethis::use_package(&quot;usethis&quot;)
+usethis::use_package(&quot;fs&quot;)</code></pre>
+<p><img src="/posts/2019/2019-04-01-usethis-for-reporting_files/usethis-use_package.png" /></p>
+<p>(and the same message for <code>fs</code> too)</p>
+<p>So, the first part of the reporting template that I actually need to build is the mysterious data cleaning, <code>delaysreport::data_cleaning()</code>. I <em>also</em> want this to open up a script when it’s run, so I’m going to create another template, repeating many of the data cleaning steps I did above.</p>
+<pre class="r"><code># {{{ report_month }}} {{{ report_year }}} TTC delays data cleaning
+
+library(readxl)
+library(dplyr)
+library(here)
+library(janitor)
+library(assertr)
+
+delays &lt;- read_excel(here(&quot;reports&quot;, &quot;{{{ report_year }}}&quot;, &quot;{{{ report_month }}}&quot;, &quot;delays_{{{ report_month }}}_{{{ report_year }}}_raw.xlsx&quot;)) %&gt;%
+  clean_names()
+
+# Check 1: Check that line is one of YU, BD, SHP, SRT --------------------------
+
+delays %&gt;%
+  assert(in_set(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;), line)
+
+# If it&#39;s not, look at the lines that violate this assumption
+
+delays %&gt;%
+  filter(!(line %in% c(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;))) %&gt;%
+  count(line)
+
+# Recode if necessary -- e.g. Y/U to YU.
+# Some may not be captured below, add them as you see fit!
+
+delays &lt;- delays %&gt;%
+  mutate(line = case_when(line %in% c(&quot;B/D&quot;, &quot;BD LINE&quot;) ~ &quot;BD&quot;,
+                          line == &quot;YUS&quot; ~ &quot;YU&quot;,
+                          TRUE ~ line))
+
+# Exclude cases where the line still isn&#39;t a thing
+
+delays &lt;- delays %&gt;%
+  filter(line %in% c(&quot;YU&quot;, &quot;BD&quot;, &quot;SHP&quot;, &quot;SRT&quot;))
+
+# Check 2: All codes have a corresponding description --------------------------
+
+# Add descriptions
+
+delays &lt;- delays %&gt;%
+  left_join(delaysreport::delay_codes,
+            by = &quot;code&quot;)
+
+# Check where it&#39;s missing
+
+delays %&gt;%
+  assert(not_na, description)
+
+# If any are missing, try to google them and find out what they are.
+
+delays %&gt;%
+  filter(is.na(description)) %&gt;%
+  count(code)
+
+# No luck? Recode any remaining missing to &quot;Delay Description Unknown&quot;
+
+delays &lt;- delays %&gt;%
+  mutate(description = case_when(is.na(description) ~ &quot;Delay Description Unknown&quot;,
+                                 TRUE ~ description))
+
+# Save clean data --------------------------------------------------------------
+
+saveRDS(delays, here(&quot;reports&quot;, &quot;{{{ report_year }}}&quot;, &quot;{{{ report_month }}}&quot;, 
+                     &quot;delays_{{{ report_month }}}_{{{ report_year }}}_clean.rds&quot;))</code></pre>
+<p>The point here is to guide the data cleaning each month – not to do it all automatically (otherwise I could write a normal function just to do all of the above steps), but to point out where additional cleaning might be needed and some suggestions of how to approach it.</p>
+<p>And just like creating the actual setup file, I’ll write my <code>data_cleaning()</code> function to open up that template.</p>
+<pre class="r"><code>usethis::use_r(&quot;data_cleaning&quot;)</code></pre>
+<pre class="r"><code>#&#39; Generate template for data cleaning
+#&#39;
+#&#39; @description Opens a template of steps for cleaning the month&#39;s delays data.
+#&#39;
+#&#39; @param report_month Month of report
+#&#39; @param report_year Year of report
+#&#39;
+#&#39; @export
+data_cleaning &lt;- function(report_month, report_year){
+  report_path &lt;- fs::path(&quot;reports&quot;, report_year, report_month)
+
+  usethis::use_template(template = &quot;data_cleaning.R&quot;,
+                        save_as = paste0(report_path, &quot;/02-data_cleaning.R&quot;),
+                        data = list(report_month = report_month,
+                                    report_year = report_year),
+                        package = &quot;delaysreport&quot;,
+                        open = TRUE)
+}</code></pre>
+<p>Now, technically you don’t <em>need</em> additional packages to actually run <code>data_cleaning()</code>, but you certainly need them to run the cleaning template! So, to be ensure the code is actually run-able when you install the package, I’m adding a few more packages as dependencies.</p>
+<pre class="r"><code>usethis::use_package(&quot;readxl&quot;)
+usethis::use_package(&quot;dplyr&quot;)
+usethis::use_package(&quot;here&quot;)
+usethis::use_package(&quot;janitor&quot;)
+usethis::use_package(&quot;assertr&quot;)</code></pre>
+<p>(btw, I’m <em>not</em> using <a href="https://usethis.r-lib.org/reference/use_pipe.html"><code>usethis::use_pipe()</code></a> because, amazingly enough, none of my functions actually use it! However, it is a totally killer helper function because it imports the <code>%&gt;%</code> itself into your package!)</p>
+<p>And finally, the elusive <code>delaysreport::delays_report</code>. This will work with, you guessed it, a template. This time it’s an R Markdown template, but things work the exact same way! My template looks like this:</p>
+<pre><code>---
+title: &quot;Top 5 delays, {{{ report_month }}} {{{ report_year }}}&quot;
+output: html_document
+---
+
+```{r setup, echo=FALSE}
+library(dplyr)
+library(ggplot2)
+library(here)
+
+delays &lt;- readRDS(here(&quot;reports&quot;, &quot;{{{ report_year }}}&quot;, &quot;{{{ report_month }}}&quot;,
+&quot;delays_{{{ report_month }}}_{{{ report_year }}}_clean.rds&quot;))
+```
+
+```{r, echo=FALSE}
+delays %&gt;%
+  group_by(line, description) %&gt;%
+  summarise(delays = sum(min_delay)) %&gt;%
+  arrange(-delays) %&gt;%
+  slice(1:5) %&gt;%
+  ggplot(aes(x = description,
+             y = delays)) +
+  geom_col() + 
+  scale_x_discrete(&quot;&quot;) +
+  scale_y_continuous(&quot;Delay (minutes)&quot;) + 
+  ggtitle(&quot;Top 10 causes for delay, by line&quot;,
+          subtitle = &quot;{{{ report_month }}} {{{ report_year }}}&quot;) + 
+  coord_flip() + 
+  facet_wrap(vars(line),
+             nrow = 1) + 
+  theme_minimal()
+```</code></pre>
+<p>And my function, <code>delays_report()</code> creates a copy of that template in the correct folder <em>and</em> optionally renders it! If it’s automatically rendered, I’m not opening the copy of the template – but if it’s not, then I will!</p>
+<pre class="r"><code>#&#39; Generate template for creating delays report
+#&#39;
+#&#39; @description Opens a template of the delays report for the month, optionally rendering it.
+#&#39;
+#&#39; @param report_month Month of report
+#&#39; @param report_year Year of report
+#&#39; @param render Should the report be rendered automatically? Defaults to `FALSE`
+#&#39;
+#&#39; @export
+delays_report &lt;- function(report_month, report_year, render = FALSE){
+  report_path &lt;- fs::path(&quot;reports&quot;, report_year, report_month)
+
+  usethis::use_template(template = &quot;delays_report.Rmd&quot;,
+                        save_as = paste0(report_path, &quot;/03-delays_report.Rmd&quot;),
+                        data = list(report_month = report_month,
+                                    report_year = report_year),
+                        package = &quot;delaysreport&quot;,
+                        open = !render)
+
+  if(render){
+    out_path &lt;- paste0(report_path, &quot;/&quot;, report_month, &quot; &quot;, report_year, &quot; &quot;,
+                       &quot;Delays.html&quot;)
+
+    rmarkdown::render(input = paste0(report_path, &quot;/03-delays_report.Rmd&quot;),
+                      output_file = paste(report_month, report_year, &quot;Delays.html&quot;),
+                      quiet = TRUE)
+
+    usethis::ui_done(&quot;Report saved to {usethis::ui_path(out_path)}&quot;)
+  }
+}</code></pre>
+<p>I’ve suppressed the usual <code>render</code> output and am instead making use of another usethis utility function, <code>usethis::ui_done()</code>, which can be used to get the cute ✔️ that’s all over usethis! I think it’s friendlier to do this than to show the ugly knitting process (it’s beautiful, just noisy, no offence)!</p>
+<p>And then add <code>knitr</code> and <code>ggplot2</code> to my package dependencies.</p>
+<pre class="r"><code>usethis::use_package(&quot;rmarkdown&quot;)
+usethis::use_package(&quot;ggplot2&quot;)</code></pre>
+<p>The last thing I want to do is create a <code>README</code>. This will have simple instructions on how to get started with the package (aka, how would you know about <code>setup()</code> if I didn’t tell you about it?!)</p>
+<pre class="r"><code>usethis::use_readme_rmd()</code></pre>
+<pre><code>---
+output: github_document
+---
+
+&lt;!-- README.md is generated from README.Rmd. Please edit that file --&gt;
+
+# delaysreport
+
+The goal of delaysreport is to help automate monthly reporting on the top 5 causes for delay on each TTC subway line.
+
+## Installation
+
+You can install the development version of delaysreport from GitHub with:
+
+``` r
+devtools::install_packages(&quot;sharlagelfand/delaysreport&quot;)
+```
+
+## Reporting
+
+To begin the delays analysis for a given month, use `delaysreport::setup()`:
+
+```{r, eval=FALSE}
+delaysreport::setup(report_month = &quot;January&quot;, 
+                    report_year = &quot;2019&quot;)
+```</code></pre>
+<p>And that’s it!! When it’s all said and done, documented and built, the directory looks like this:</p>
+<pre><code>├── DESCRIPTION
+├── LICENSE
+├── LICENSE.md
+├── NAMESPACE
+├── R
+│   ├── data_cleaning.R
+│   ├── delays_report.R
+│   └── setup.R
+├── README.Rmd
+├── README.md
+├── data
+│   └── delay_codes.rda
+├── data-raw
+│   ├── Subway &amp; SRT Log Codes.xlsx
+│   └── delay_codes.R
+├── delaysreport.Rproj
+├── inst
+│   └── templates
+│       ├── data_cleaning.R
+│       ├── delays_report.Rmd
+│       └── setup.R
+└── man
+    ├── data_cleaning.Rd
+    ├── delays_report.Rd
+    └── setup.Rd</code></pre>
+<p>(ps - NO my package does not have any tests. don’t @ me okay bye!)</p>
+<p>I’ve removed the <code>reports/</code> folder because it’s not actually part of the package – it was just convenient for me to be working in that working directory too. But it’s not installed when you build or install the package.</p>
+<p>Some people <strong>do</strong> actually bundle the reports into the package, e.g. as vignettes. I am not that fancy aka have not gotten that far into my learning yet.</p>
+<p>But if I run through it all for February, the final directory includes this:</p>
+<pre><code>└── reports
+    └── 2019
+        └── February
+            ├── 01-setup.R
+            ├── 02-data_cleaning.R
+            ├── 03-delays_report.Rmd
+            ├── February 2019 Delays.html
+            ├── delays_February_2019_clean.rds
+            └── delays_February_2019_raw.xlsx</code></pre>
+<p>And the analysis is all contained! It can be run whenever, wherever (🎵 we’re meant to be together 🎵).</p>
+<p>If you want to explore the directory more fully, or actually run the package yourself, it’s <a href="https://github.com/sharlagelfand/delaysreport">here</a> on GitHub! My brain is 😵 over all this new knowledge, but I am always open to areas for improvement if you see any~ 💪</p>
+</div>
