@@ -1,14 +1,14 @@
 ---
 title: here's what i know about tidyeval
-author: ''
 date: '2019-02-10'
 slug: tidyeval
 ---
 
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, error = TRUE, message = FALSE)
 ```
+
+**update**: given [the release of rlang 0.4.0](https://www.tidyverse.org/articles/2019/06/rlang-0-4-0/) and especially the introduction of the `{{ }}` (curly-curly!) operator to tidyeval, i've made some updates to this post! i'm leaving the legacy `enquo()` and `!!` code for comparison purposes.
 
 there's no shortage of resources about tidyeval (i've listed some at the bottom), but this is a collection of what i know.
 
@@ -37,7 +37,7 @@ let's say i want a function that returns the mean delay (`min_delay` is the dela
 when writing the function, use `enquo()` to quote the variable, then `!!` to unquote it.
 
 ```{r grouped-mean-delay}
-grouped_mean_delay <- function(df, group_var){
+grouped_mean_delay <- function(df, group_var) {
   group_var <- enquo(group_var)
 
   df %>%
@@ -53,6 +53,29 @@ delays %>%
   grouped_mean_delay(group_var = day)
 ```
 
+## curly-curly update
+
+this is now *even easier* (to use and to understand, imo) with the introduction of the `{{ }}` operator. it does the `enquo()` and `!!` in one step, so instead your function looks like this:
+
+```{r grouped-mean-delay-curly-curly}
+grouped_mean_delay_curly_curly <- function(df, group_var) {
+  df %>%
+    group_by({
+      {
+        group_var
+      }
+    }) %>%
+    summarise(mean_delay = mean(min_delay))
+}
+```
+
+and i'd still call the function by passing the variable, without parentheses -- nothing changes on the user side, only in the writing and comprehension of the function's source code.
+
+```{r used-grouped-mean-delay-curly-curly}
+delays %>%
+  grouped_mean_delay_curly_curly(group_var = day)
+```
+
 # two variables, for two purposes
 
 that's nice, but i probably don't always want the mean delay. what if i want the mean *gap* that the delay causes? the variable `min_gap` shows this -- e.g. if `min_gap` is 12, then that delay caused a 12 minute gap between trains at that station.
@@ -62,21 +85,49 @@ i don't really want to write a new function for every variable i might want to g
 you can do this the exact same way, and just add another argument for the variable you want the mean for.
 
 ```{r grouped-mean}
-grouped_mean <- function(df, group_var, mean_var){
+grouped_mean <- function(df, group_var, mean_var) {
   group_var <- enquo(group_var)
   mean_var <- enquo(mean_var)
-  
+
   df %>%
     group_by(!!group_var) %>%
     summarise(mean = mean(!!mean_var))
 }
 
 delays %>%
-  grouped_mean(group_var = day, 
-               mean_var = min_gap)
+  grouped_mean(
+    group_var = day,
+    mean_var = min_gap
+  )
 ```
 
 yes there are way to change the name of the output variable (i.e. so it's not just `mean`). [programming with dplyr](https://dplyr.tidyverse.org/articles/programming.html) talks about this, but i never really do it, so `r emo::ji("information_desk_person")`
+
+## curly-curly update
+
+again, switching over to using the `{{ }}` syntax is quite simple! you can throw those `enquo()`s straight in the trash and just use `{{ }}` s where the `!!`s went:
+
+```{r grouped-mean-curly-curly}
+grouped_mean_curly_curly <- function(df, group_var, mean_var) {
+  df %>%
+    group_by({
+      {
+        group_var
+      }
+    }) %>%
+    summarise(mean = mean({
+      {
+        mean_var
+      }
+    }))
+}
+
+delays %>%
+  grouped_mean_curly_curly(
+    group_var = day,
+    mean_var = min_gap
+  )
+```
 
 # many variables, for the same purpose?
 
@@ -89,7 +140,7 @@ there's a few ways you can do this.
 the first, which literally blew my mind the first time i saw it, uses `...`, and you pass the dots straight in when writing your function.
 
 ```{r}
-grouped_mean_delay_2 <- function(df, ...){
+grouped_mean_delay_2 <- function(df, ...) {
   df %>%
     group_by(...) %>%
     summarise(mean_delay = mean(min_delay))
@@ -117,7 +168,7 @@ and you have to write your function using `vars()` a little differently, dependi
 for verbs that take `...`, you got to just pass the dots. but you cannot just pass the `vars()`! if you want to use a named argument, and `vars()`, then you have to expand the variables back out using `!!!` (that's three bangs).
 
 ```{r}
-grouped_mean_delay_3 <- function(df, group_vars){
+grouped_mean_delay_3 <- function(df, group_vars) {
   df %>%
     group_by(!!!group_vars) %>%
     summarise(mean_delay = mean(min_delay))
@@ -140,7 +191,7 @@ say we want the mean delay *and* the mean gap.
 you can't pass the dots here.
 
 ```{r}
-variable_mean_broken <- function(df, ...){
+variable_mean_broken <- function(df, ...) {
   df %>%
     summarise_at(..., mean)
 }
@@ -156,7 +207,7 @@ we need to pass in something that `summarise_at()` expects, specifically somethi
 just like above, how because `group_by()` expects `...` arguments, we don't need to do anything to those dots. 
 
 ```{r}
-variable_mean <- function(df, mean_vars){
+variable_mean <- function(df, mean_vars) {
   df %>%
     summarise_at(mean_vars, mean)
 }
@@ -176,23 +227,27 @@ you use `vars()`!
 if i want to group by many variables *and* get the mean for many variables, then i can just throw a bunch of `vars()` in:
 
 ```{r}
-general_grouped_mean <- function(df, group_vars, mean_vars){
+general_grouped_mean <- function(df, group_vars, mean_vars) {
   df %>%
     group_by(!!!group_vars) %>%
     summarise_at(mean_vars, mean)
 }
 
 delays %>%
-  general_grouped_mean(group_vars = vars(line, day), 
-                       mean_vars = vars(min_delay, min_gap))
+  general_grouped_mean(
+    group_vars = vars(line, day),
+    mean_vars = vars(min_delay, min_gap)
+  )
 ```
 
 the only thing here is that you *have* to use `vars()`, even if you're just passing one variable. like, this doesn't work:
 
 ```{r}
 delays %>%
-  general_grouped_mean(group_vars = day,
-                       mean_vars = vars(min_delay, min_gap))
+  general_grouped_mean(
+    group_vars = day,
+    mean_vars = vars(min_delay, min_gap)
+  )
 ```
 
 because the tidyeval method for passing in a single variable to `group_by()` is `enquo()` and then `!!` as described in the first bit,
@@ -201,8 +256,10 @@ and neither does this:
 
 ```{r}
 delays %>%
-  general_grouped_mean(group_vars = vars(day, line),
-                       mean_vars = min_delay)
+  general_grouped_mean(
+    group_vars = vars(day, line),
+    mean_vars = min_delay
+  )
 ```
 
 because `summarise_at()` requires a `vars()` call (or one of the other options described in the `.vars` argument).
@@ -211,8 +268,10 @@ this is still something i'm working out myself. how do i account for the possibi
 
 ```{r}
 delays %>%
-  general_grouped_mean(group_vars = vars(day),
-                       mean_vars = vars(min_delay))
+  general_grouped_mean(
+    group_vars = vars(day),
+    mean_vars = vars(min_delay)
+  )
 ```
 
 # passing functions
@@ -224,15 +283,17 @@ say i actually looked at my data and discovered the mean isn't a great measure f
 the way to do this is outside a function is:
 
 ```{r}
-delays %>% 
-  summarise_at(vars(min_delay, min_gap), 
-               funs(mean, median))
+delays %>%
+  summarise_at(
+    vars(min_delay, min_gap),
+    list(mean, median)
+  )
 ```
 
 so if you're writing a function, it looks like this:
 
 ```{r}
-summary_by_var <- function(df, summary_vars, summary_funs){
+summary_by_var <- function(df, summary_vars, summary_funs) {
   df %>%
     summarise_at(summary_vars, summary_funs)
 }
@@ -242,36 +303,44 @@ if you're just doing one summary function, it's pretty easy to just pass right i
 
 ```{r}
 delays %>%
-  summary_by_var(vars(min_delay, min_gap),
-                 median)
+  summary_by_var(
+    vars(min_delay, min_gap),
+    median
+  )
 ```
 
-for multiple, you pass in a *list* of functions generated by `funs()`. i suggest you name them, otherwise your output will be ugly.
+for multiple, you pass in a *list* of functions generated by `list()`. i suggest you name them, otherwise your output will be ugly.
 
 ```{r}
 delays %>%
-  summary_by_var(vars(min_delay, min_gap),
-                 funs(mean = mean, median = median))
+  summary_by_var(
+    vars(min_delay, min_gap),
+    list(mean = mean, median = median)
+  )
 ```
 
-you could actually use `list(mean = mean, median = median)` too, but i think the `funs()` case is clearer, since that's what `summarise_at()`'s `.funs` argument says it takes.
+note that a previous version of this blog post advised to use `funs()` instead of `list()` -- if that's what you've done historically, me too! as of dplyr 0.8.0, `funs()` is [soft deprecated](https://dplyr.tidyverse.org/reference/funs.html) and the use of `list()` is recommended instead.
 
 # putting it all together
 
 now we can put everything together: group by multiple things and summarise multiple variables using multiple functions.
 
 ```{r}
-grouped_summary <- function(df, group_vars, summary_vars, summary_funs){
+grouped_summary <- function(df, group_vars, summary_vars, summary_funs) {
   df %>%
     group_by(!!!group_vars) %>%
     summarise_at(summary_vars, summary_funs)
 }
 
 delays %>%
-  grouped_summary(group_vars = vars(day, line),
-                  summary_vars = vars(min_delay, min_gap),
-                  summary_funs = funs(mean = mean,
-                                      median = median))
+  grouped_summary(
+    group_vars = vars(day, line),
+    summary_vars = vars(min_delay, min_gap),
+    summary_funs = funs(
+      mean = mean,
+      median = median
+    )
+  )
 ```
 
 wowwww.
@@ -279,6 +348,8 @@ wowwww.
 # bye
 
 there is a lot i don't know still, and i am happy to be pointed in the direction of other information, or told if i'm spreading misinformation! i especially would like to know how to be able to pass `vars()` OR just a single variable without `vars()`. do i write an `if` statement and then use `enquo()` and `!!`? i don't know! do you?
+
+**update**: rip `enquo()` and `!!` long live curly-curly
 
 thanks to everyone that talks to me on twitter about tidyeval. there's a lot out there `r emo::ji("world")`
 

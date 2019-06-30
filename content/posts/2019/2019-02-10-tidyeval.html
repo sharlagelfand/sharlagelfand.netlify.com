@@ -1,12 +1,12 @@
 ---
 title: here's what i know about tidyeval
-author: ''
 date: '2019-02-10'
 slug: tidyeval
 ---
 
 
 
+<p><strong>update</strong>: given <a href="https://www.tidyverse.org/articles/2019/06/rlang-0-4-0/">the release of rlang 0.4.0</a> and especially the introduction of the <code>{{ }}</code> (curly-curly!) operator to tidyeval, i’ve made some updates to this post! i’m leaving the legacy <code>enquo()</code> and <code>!!</code> code for comparison purposes.</p>
 <p>there’s no shortage of resources about tidyeval (i’ve listed some at the bottom), but this is a collection of what i know.</p>
 <p>there is really no “why” here, or not much. i’m more of a “how” person, so ymmv on the usefulness.</p>
 <p>i won’t use mtcars or iris because i’m bored to death of them. let’s use a dataset of toronto subway delays from 2018 (<a href="https://www.toronto.ca/city-government/data-research-maps/open-data/open-data-catalogue/transportation/#917dd033-1fe5-4ba8-04ca-f683eec89761">available from toronto open data</a>)</p>
@@ -33,7 +33,7 @@ head(delays)</code></pre>
 <h1>one variable</h1>
 <p>let’s say i want a function that returns the mean delay (<code>min_delay</code> is the delay, in minutes) based on a specific grouping, e.g. by <code>station</code>, maybe by <code>day</code>.</p>
 <p>when writing the function, use <code>enquo()</code> to quote the variable, then <code>!!</code> to unquote it.</p>
-<pre class="r"><code>grouped_mean_delay &lt;- function(df, group_var){
+<pre class="r"><code>grouped_mean_delay &lt;- function(df, group_var) {
   group_var &lt;- enquo(group_var)
 
   df %&gt;%
@@ -53,24 +53,52 @@ head(delays)</code></pre>
 ## 5 Thursday        1.99
 ## 6 Tuesday         2.26
 ## 7 Wednesday       2.04</code></pre>
+<div id="curly-curly-update" class="section level2">
+<h2>curly-curly update</h2>
+<p>this is now <em>even easier</em> (to use and to understand, imo) with the introduction of the <code>{{ }}</code> operator. it does the <code>enquo()</code> and <code>!!</code> in one step, so instead your function looks like this:</p>
+<pre class="r"><code>grouped_mean_delay_curly_curly &lt;- function(df, group_var) {
+  df %&gt;%
+    group_by({
+      {
+        group_var
+      }
+    }) %&gt;%
+    summarise(mean_delay = mean(min_delay))
+}</code></pre>
+<p>and i’d still call the function by passing the variable, without parentheses – nothing changes on the user side, only in the writing and comprehension of the function’s source code.</p>
+<pre class="r"><code>delays %&gt;%
+  grouped_mean_delay_curly_curly(group_var = day)</code></pre>
+<pre><code>## # A tibble: 7 x 2
+##   day       mean_delay
+##   &lt;chr&gt;          &lt;dbl&gt;
+## 1 Friday          2.34
+## 2 Monday          2.46
+## 3 Saturday        2.89
+## 4 Sunday          2.52
+## 5 Thursday        1.99
+## 6 Tuesday         2.26
+## 7 Wednesday       2.04</code></pre>
+</div>
 </div>
 <div id="two-variables-for-two-purposes" class="section level1">
 <h1>two variables, for two purposes</h1>
 <p>that’s nice, but i probably don’t always want the mean delay. what if i want the mean <em>gap</em> that the delay causes? the variable <code>min_gap</code> shows this – e.g. if <code>min_gap</code> is 12, then that delay caused a 12 minute gap between trains at that station.</p>
 <p>i don’t really want to write a new function for every variable i might want to get the mean for, so it’d be nice to generalize <code>grouped_mean_delay()</code> to be a more general grouped mean.</p>
 <p>you can do this the exact same way, and just add another argument for the variable you want the mean for.</p>
-<pre class="r"><code>grouped_mean &lt;- function(df, group_var, mean_var){
+<pre class="r"><code>grouped_mean &lt;- function(df, group_var, mean_var) {
   group_var &lt;- enquo(group_var)
   mean_var &lt;- enquo(mean_var)
-  
+
   df %&gt;%
     group_by(!!group_var) %&gt;%
     summarise(mean = mean(!!mean_var))
 }
 
 delays %&gt;%
-  grouped_mean(group_var = day, 
-               mean_var = min_gap)</code></pre>
+  grouped_mean(
+    group_var = day,
+    mean_var = min_gap
+  )</code></pre>
 <pre><code>## # A tibble: 7 x 2
 ##   day        mean
 ##   &lt;chr&gt;     &lt;dbl&gt;
@@ -82,6 +110,39 @@ delays %&gt;%
 ## 6 Tuesday    3.25
 ## 7 Wednesday  3.09</code></pre>
 <p>yes there are way to change the name of the output variable (i.e. so it’s not just <code>mean</code>). <a href="https://dplyr.tidyverse.org/articles/programming.html">programming with dplyr</a> talks about this, but i never really do it, so 💁</p>
+<div id="curly-curly-update-1" class="section level2">
+<h2>curly-curly update</h2>
+<p>again, switching over to using the <code>{{ }}</code> syntax is quite simple! you can throw those <code>enquo()</code>s straight in the trash and just use <code>{{ }}</code> s where the <code>!!</code>s went:</p>
+<pre class="r"><code>grouped_mean_curly_curly &lt;- function(df, group_var, mean_var) {
+  df %&gt;%
+    group_by({
+      {
+        group_var
+      }
+    }) %&gt;%
+    summarise(mean = mean({
+      {
+        mean_var
+      }
+    }))
+}
+
+delays %&gt;%
+  grouped_mean_curly_curly(
+    group_var = day,
+    mean_var = min_gap
+  )</code></pre>
+<pre><code>## # A tibble: 7 x 2
+##   day        mean
+##   &lt;chr&gt;     &lt;dbl&gt;
+## 1 Friday     3.46
+## 2 Monday     3.48
+## 3 Saturday   4.34
+## 4 Sunday     3.67
+## 5 Thursday   2.97
+## 6 Tuesday    3.25
+## 7 Wednesday  3.09</code></pre>
+</div>
 </div>
 <div id="many-variables-for-the-same-purpose" class="section level1">
 <h1>many variables, for the same purpose?</h1>
@@ -90,7 +151,7 @@ delays %&gt;%
 <div id="pass-the-dots" class="section level2">
 <h2>pass the dots</h2>
 <p>the first, which literally blew my mind the first time i saw it, uses <code>...</code>, and you pass the dots straight in when writing your function.</p>
-<pre class="r"><code>grouped_mean_delay_2 &lt;- function(df, ...){
+<pre class="r"><code>grouped_mean_delay_2 &lt;- function(df, ...) {
   df %&gt;%
     group_by(...) %&gt;%
     summarise(mean_delay = mean(min_delay))
@@ -99,19 +160,19 @@ delays %&gt;%
 delays %&gt;%
   grouped_mean_delay_2(day, line)</code></pre>
 <pre><code>## # A tibble: 63 x 3
-## # Groups:   day [?]
+## # Groups:   day [7]
 ##    day    line        mean_delay
 ##    &lt;chr&gt;  &lt;chr&gt;            &lt;dbl&gt;
-##  1 Friday 16 MCCOWAN        0   
-##  2 Friday 704 RAD BUS       0   
-##  3 Friday BD                2.01
-##  4 Friday SHP               2.04
-##  5 Friday SRT               5.98
-##  6 Friday YU                2.49
-##  7 Friday YU / BD           0   
-##  8 Friday YU/ BD            0   
-##  9 Friday YU/BD             0   
-## 10 Friday YUS               0   
+##  1 Friday &lt;NA&gt;              0   
+##  2 Friday 16 MCCOWAN        0   
+##  3 Friday 704 RAD BUS       0   
+##  4 Friday BD                2.01
+##  5 Friday SHP               2.04
+##  6 Friday SRT               5.98
+##  7 Friday YU                2.49
+##  8 Friday YU / BD           0   
+##  9 Friday YU/ BD            0   
+## 10 Friday YU/BD             0   
 ## # … with 53 more rows</code></pre>
 <p>of course we have the added pleasure of the fact that this dataset isn’t coded consistently (three variants of YU/BD!), but that’s a topic for another post.</p>
 </div>
@@ -127,7 +188,7 @@ delays %&gt;%
 <div id="verbs-that-take-..." class="section level3">
 <h3>verbs that take <code>...</code></h3>
 <p>for verbs that take <code>...</code>, you got to just pass the dots. but you cannot just pass the <code>vars()</code>! if you want to use a named argument, and <code>vars()</code>, then you have to expand the variables back out using <code>!!!</code> (that’s three bangs).</p>
-<pre class="r"><code>grouped_mean_delay_3 &lt;- function(df, group_vars){
+<pre class="r"><code>grouped_mean_delay_3 &lt;- function(df, group_vars) {
   df %&gt;%
     group_by(!!!group_vars) %&gt;%
     summarise(mean_delay = mean(min_delay))
@@ -136,19 +197,19 @@ delays %&gt;%
 delays %&gt;%
   grouped_mean_delay_3(group_vars = vars(day, line))</code></pre>
 <pre><code>## # A tibble: 63 x 3
-## # Groups:   day [?]
+## # Groups:   day [7]
 ##    day    line        mean_delay
 ##    &lt;chr&gt;  &lt;chr&gt;            &lt;dbl&gt;
-##  1 Friday 16 MCCOWAN        0   
-##  2 Friday 704 RAD BUS       0   
-##  3 Friday BD                2.01
-##  4 Friday SHP               2.04
-##  5 Friday SRT               5.98
-##  6 Friday YU                2.49
-##  7 Friday YU / BD           0   
-##  8 Friday YU/ BD            0   
-##  9 Friday YU/BD             0   
-## 10 Friday YUS               0   
+##  1 Friday &lt;NA&gt;              0   
+##  2 Friday 16 MCCOWAN        0   
+##  3 Friday 704 RAD BUS       0   
+##  4 Friday BD                2.01
+##  5 Friday SHP               2.04
+##  6 Friday SRT               5.98
+##  7 Friday YU                2.49
+##  8 Friday YU / BD           0   
+##  9 Friday YU/ BD            0   
+## 10 Friday YU/BD             0   
 ## # … with 53 more rows</code></pre>
 <p>beauty.</p>
 </div>
@@ -158,7 +219,7 @@ delays %&gt;%
 <p>the <code>vars</code> argument of <code>summarise_at()</code> specifically says it “takes a list of columns generated by <code>vars()</code>” (and some other things).</p>
 <p>say we want the mean delay <em>and</em> the mean gap.</p>
 <p>you can’t pass the dots here.</p>
-<pre class="r"><code>variable_mean_broken &lt;- function(df, ...){
+<pre class="r"><code>variable_mean_broken &lt;- function(df, ...) {
   df %&gt;%
     summarise_at(..., mean)
 }
@@ -169,7 +230,7 @@ delays %&gt;%
 <p>but you <em>can</em> just pass the <code>vars()</code>.</p>
 <p>we need to pass in something that <code>summarise_at()</code> expects, specifically something that looks more like a <code>vars()</code> call. because <code>summarise_at()</code> <em>expects</em> something using <code>vars()</code>, we don’t need to do anything to expand the variables out.</p>
 <p>just like above, how because <code>group_by()</code> expects <code>...</code> arguments, we don’t need to do anything to those dots.</p>
-<pre class="r"><code>variable_mean &lt;- function(df, mean_vars){
+<pre class="r"><code>variable_mean &lt;- function(df, mean_vars) {
   df %&gt;%
     summarise_at(mean_vars, mean)
 }
@@ -189,46 +250,54 @@ delays %&gt;%
 <p>i think this whole <code>vars()</code> thing really shines when you have many variables for many purposes. i knew about passing the dots, but i was like… how do you pass the dots… twice? jenny bryan’s like yeah, you don’t.</p>
 <p>you use <code>vars()</code>!</p>
 <p>if i want to group by many variables <em>and</em> get the mean for many variables, then i can just throw a bunch of <code>vars()</code> in:</p>
-<pre class="r"><code>general_grouped_mean &lt;- function(df, group_vars, mean_vars){
+<pre class="r"><code>general_grouped_mean &lt;- function(df, group_vars, mean_vars) {
   df %&gt;%
     group_by(!!!group_vars) %&gt;%
     summarise_at(mean_vars, mean)
 }
 
 delays %&gt;%
-  general_grouped_mean(group_vars = vars(line, day), 
-                       mean_vars = vars(min_delay, min_gap))</code></pre>
+  general_grouped_mean(
+    group_vars = vars(line, day),
+    mean_vars = vars(min_delay, min_gap)
+  )</code></pre>
 <pre><code>## # A tibble: 63 x 4
-## # Groups:   line [?]
-##    line        day      min_delay min_gap
-##    &lt;chr&gt;       &lt;chr&gt;        &lt;dbl&gt;   &lt;dbl&gt;
-##  1 16 MCCOWAN  Friday        0       0   
-##  2 16 MCCOWAN  Saturday      0       0   
-##  3 704 RAD BUS Friday        0       0   
-##  4 999         Monday        0       0   
-##  5 999         Thursday      0       0   
-##  6 999         Tuesday       0       0   
-##  7 BD          Friday        2.01    2.91
-##  8 BD          Monday        2.12    3.05
-##  9 BD          Saturday      2.58    3.84
-## 10 BD          Sunday        2.44    3.59
+## # Groups:   line [16]
+##    line        day       min_delay min_gap
+##    &lt;chr&gt;       &lt;chr&gt;         &lt;dbl&gt;   &lt;dbl&gt;
+##  1 &lt;NA&gt;        Friday        0        0   
+##  2 &lt;NA&gt;        Monday        0        0   
+##  3 &lt;NA&gt;        Saturday      0.667    1.11
+##  4 &lt;NA&gt;        Sunday        0        0   
+##  5 &lt;NA&gt;        Thursday      0        0   
+##  6 &lt;NA&gt;        Tuesday       0        0   
+##  7 &lt;NA&gt;        Wednesday     0        0   
+##  8 16 MCCOWAN  Friday        0        0   
+##  9 16 MCCOWAN  Saturday      0        0   
+## 10 704 RAD BUS Friday        0        0   
 ## # … with 53 more rows</code></pre>
 <p>the only thing here is that you <em>have</em> to use <code>vars()</code>, even if you’re just passing one variable. like, this doesn’t work:</p>
 <pre class="r"><code>delays %&gt;%
-  general_grouped_mean(group_vars = day,
-                       mean_vars = vars(min_delay, min_gap))</code></pre>
+  general_grouped_mean(
+    group_vars = day,
+    mean_vars = vars(min_delay, min_gap)
+  )</code></pre>
 <pre><code>## Error in quos(...): object &#39;day&#39; not found</code></pre>
 <p>because the tidyeval method for passing in a single variable to <code>group_by()</code> is <code>enquo()</code> and then <code>!!</code> as described in the first bit,</p>
 <p>and neither does this:</p>
 <pre class="r"><code>delays %&gt;%
-  general_grouped_mean(group_vars = vars(day, line),
-                       mean_vars = min_delay)</code></pre>
+  general_grouped_mean(
+    group_vars = vars(day, line),
+    mean_vars = min_delay
+  )</code></pre>
 <pre><code>## Error in check_dot_cols(.vars, .cols): object &#39;min_delay&#39; not found</code></pre>
 <p>because <code>summarise_at()</code> requires a <code>vars()</code> call (or one of the other options described in the <code>.vars</code> argument).</p>
 <p>this is still something i’m working out myself. how do i account for the possibility of a <code>vars()</code>, or just a variable on its own? is this what methods are for? s3? i totally know about that. for now, i will be a heavy user of the <code>vars()</code>, even when it’s overkill, a la</p>
 <pre class="r"><code>delays %&gt;%
-  general_grouped_mean(group_vars = vars(day),
-                       mean_vars = vars(min_delay))</code></pre>
+  general_grouped_mean(
+    group_vars = vars(day),
+    mean_vars = vars(min_delay)
+  )</code></pre>
 <pre><code>## # A tibble: 7 x 2
 ##   day       min_delay
 ##   &lt;chr&gt;         &lt;dbl&gt;
@@ -245,71 +314,91 @@ delays %&gt;%
 <p>the last thing i know is something i <em>just</em> learned, because someone else asked about it on twitter. thanks <a href="https://twitter.com/Benjaming_G/status/1094665581750509568">benjamin gowan</a>!</p>
 <p>say i actually looked at my data and discovered the mean isn’t a great measure for delays, so i want the median, too.</p>
 <p>the way to do this is outside a function is:</p>
-<pre class="r"><code>delays %&gt;% 
-  summarise_at(vars(min_delay, min_gap), 
-               funs(mean, median))</code></pre>
+<pre class="r"><code>delays %&gt;%
+  summarise_at(
+    vars(min_delay, min_gap),
+    list(mean, median)
+  )</code></pre>
 <pre><code>## # A tibble: 1 x 4
-##   min_delay_mean min_gap_mean min_delay_median min_gap_median
-##            &lt;dbl&gt;        &lt;dbl&gt;            &lt;dbl&gt;          &lt;dbl&gt;
-## 1           2.33         3.42                0              0</code></pre>
+##   min_delay_fn1 min_gap_fn1 min_delay_fn2 min_gap_fn2
+##           &lt;dbl&gt;       &lt;dbl&gt;         &lt;dbl&gt;       &lt;dbl&gt;
+## 1          2.33        3.42             0           0</code></pre>
 <p>so if you’re writing a function, it looks like this:</p>
-<pre class="r"><code>summary_by_var &lt;- function(df, summary_vars, summary_funs){
+<pre class="r"><code>summary_by_var &lt;- function(df, summary_vars, summary_funs) {
   df %&gt;%
     summarise_at(summary_vars, summary_funs)
 }</code></pre>
 <p>if you’re just doing one summary function, it’s pretty easy to just pass right in</p>
 <pre class="r"><code>delays %&gt;%
-  summary_by_var(vars(min_delay, min_gap),
-                 median)</code></pre>
+  summary_by_var(
+    vars(min_delay, min_gap),
+    median
+  )</code></pre>
 <pre><code>## # A tibble: 1 x 2
 ##   min_delay min_gap
 ##       &lt;dbl&gt;   &lt;dbl&gt;
 ## 1         0       0</code></pre>
-<p>for multiple, you pass in a <em>list</em> of functions generated by <code>funs()</code>. i suggest you name them, otherwise your output will be ugly.</p>
+<p>for multiple, you pass in a <em>list</em> of functions generated by <code>list()</code>. i suggest you name them, otherwise your output will be ugly.</p>
 <pre class="r"><code>delays %&gt;%
-  summary_by_var(vars(min_delay, min_gap),
-                 funs(mean = mean, median = median))</code></pre>
+  summary_by_var(
+    vars(min_delay, min_gap),
+    list(mean = mean, median = median)
+  )</code></pre>
 <pre><code>## # A tibble: 1 x 4
 ##   min_delay_mean min_gap_mean min_delay_median min_gap_median
 ##            &lt;dbl&gt;        &lt;dbl&gt;            &lt;dbl&gt;          &lt;dbl&gt;
 ## 1           2.33         3.42                0              0</code></pre>
-<p>you could actually use <code>list(mean = mean, median = median)</code> too, but i think the <code>funs()</code> case is clearer, since that’s what <code>summarise_at()</code>’s <code>.funs</code> argument says it takes.</p>
+<p>note that a previous version of this blog post advised to use <code>funs()</code> instead of <code>list()</code> – if that’s what you’ve done historically, me too! as of dplyr 0.8.0, <code>funs()</code> is <a href="https://dplyr.tidyverse.org/reference/funs.html">soft deprecated</a> and the use of <code>list()</code> is recommended instead.</p>
 </div>
 <div id="putting-it-all-together" class="section level1">
 <h1>putting it all together</h1>
 <p>now we can put everything together: group by multiple things and summarise multiple variables using multiple functions.</p>
-<pre class="r"><code>grouped_summary &lt;- function(df, group_vars, summary_vars, summary_funs){
+<pre class="r"><code>grouped_summary &lt;- function(df, group_vars, summary_vars, summary_funs) {
   df %&gt;%
     group_by(!!!group_vars) %&gt;%
     summarise_at(summary_vars, summary_funs)
 }
 
 delays %&gt;%
-  grouped_summary(group_vars = vars(day, line),
-                  summary_vars = vars(min_delay, min_gap),
-                  summary_funs = funs(mean = mean,
-                                      median = median))</code></pre>
+  grouped_summary(
+    group_vars = vars(day, line),
+    summary_vars = vars(min_delay, min_gap),
+    summary_funs = funs(
+      mean = mean,
+      median = median
+    )
+  )</code></pre>
+<pre><code>## Warning: funs() is soft deprecated as of dplyr 0.8.0
+## please use list() instead
+## 
+## # Before:
+## funs(name = f(.)
+## 
+## # After: 
+## list(name = ~f(.))
+## This warning is displayed once per session.</code></pre>
 <pre><code>## # A tibble: 63 x 6
-## # Groups:   day [?]
+## # Groups:   day [7]
 ##    day    line  min_delay_mean min_gap_mean min_delay_median min_gap_median
 ##    &lt;chr&gt;  &lt;chr&gt;          &lt;dbl&gt;        &lt;dbl&gt;            &lt;dbl&gt;          &lt;dbl&gt;
-##  1 Friday 16 M…           0            0                   0              0
-##  2 Friday 704 …           0            0                   0              0
-##  3 Friday BD              2.01         2.91                0              0
-##  4 Friday SHP             2.04         3.56                0              0
-##  5 Friday SRT             5.98         9.31                4             10
-##  6 Friday YU              2.49         3.66                0              0
-##  7 Friday YU /…           0            0                   0              0
-##  8 Friday YU/ …           0            0                   0              0
-##  9 Friday YU/BD           0            0                   0              0
-## 10 Friday YUS             0            0                   0              0
+##  1 Friday &lt;NA&gt;            0            0                   0              0
+##  2 Friday 16 M…           0            0                   0              0
+##  3 Friday 704 …           0            0                   0              0
+##  4 Friday BD              2.01         2.91                0              0
+##  5 Friday SHP             2.04         3.56                0              0
+##  6 Friday SRT             5.98         9.31                4             10
+##  7 Friday YU              2.49         3.66                0              0
+##  8 Friday YU /…           0            0                   0              0
+##  9 Friday YU/ …           0            0                   0              0
+## 10 Friday YU/BD           0            0                   0              0
 ## # … with 53 more rows</code></pre>
 <p>wowwww.</p>
 </div>
 <div id="bye" class="section level1">
 <h1>bye</h1>
 <p>there is a lot i don’t know still, and i am happy to be pointed in the direction of other information, or told if i’m spreading misinformation! i especially would like to know how to be able to pass <code>vars()</code> OR just a single variable without <code>vars()</code>. do i write an <code>if</code> statement and then use <code>enquo()</code> and <code>!!</code>? i don’t know! do you?</p>
-<p>thanks to everyone that talks to me on twitter about tidyeval. there’s a lot out there 🌏</p>
+<p><strong>update</strong>: rip <code>enquo()</code> and <code>!!</code> long live curly-curly</p>
+<p>thanks to everyone that talks to me on twitter about tidyeval. there’s a lot out there 🌍</p>
 <p>here is a collection of tidyeval resources that probably explain why things work the way they do:</p>
 <ul>
 <li><a href="https://dplyr.tidyverse.org/articles/programming.html">programming with dplyr vignette by ?? the tidyverse team</a></li>
