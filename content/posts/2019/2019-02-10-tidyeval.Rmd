@@ -60,11 +60,7 @@ this is now *even easier* (to use and to understand, imo) with the introduction 
 ```{r grouped-mean-delay-curly-curly}
 grouped_mean_delay_curly_curly <- function(df, group_var) {
   df %>%
-    group_by({
-      {
-        group_var
-      }
-    }) %>%
+    group_by({{ group_var }}) %>%
     summarise(mean_delay = mean(min_delay))
 }
 ```
@@ -110,16 +106,8 @@ again, switching over to using the `{{ }}` syntax is quite simple! you can throw
 ```{r grouped-mean-curly-curly}
 grouped_mean_curly_curly <- function(df, group_var, mean_var) {
   df %>%
-    group_by({
-      {
-        group_var
-      }
-    }) %>%
-    summarise(mean = mean({
-      {
-        mean_var
-      }
-    }))
+    group_by({{ group_var }}) %>%
+    summarise(mean = mean({{ mean_var }}))
 }
 
 delays %>%

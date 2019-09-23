@@ -58,11 +58,7 @@ head(delays)</code></pre>
 <p>this is now <em>even easier</em> (to use and to understand, imo) with the introduction of the <code>{{ }}</code> operator. it does the <code>enquo()</code> and <code>!!</code> in one step, so instead your function looks like this:</p>
 <pre class="r"><code>grouped_mean_delay_curly_curly &lt;- function(df, group_var) {
   df %&gt;%
-    group_by({
-      {
-        group_var
-      }
-    }) %&gt;%
+    group_by({{ group_var }}) %&gt;%
     summarise(mean_delay = mean(min_delay))
 }</code></pre>
 <p>and i’d still call the function by passing the variable, without parentheses – nothing changes on the user side, only in the writing and comprehension of the function’s source code.</p>
@@ -115,16 +111,8 @@ delays %&gt;%
 <p>again, switching over to using the <code>{{ }}</code> syntax is quite simple! you can throw those <code>enquo()</code>s straight in the trash and just use <code>{{ }}</code> s where the <code>!!</code>s went:</p>
 <pre class="r"><code>grouped_mean_curly_curly &lt;- function(df, group_var, mean_var) {
   df %&gt;%
-    group_by({
-      {
-        group_var
-      }
-    }) %&gt;%
-    summarise(mean = mean({
-      {
-        mean_var
-      }
-    }))
+    group_by({{ group_var }}) %&gt;%
+    summarise(mean = mean({{ mean_var }}))
 }
 
 delays %&gt;%
@@ -163,16 +151,16 @@ delays %&gt;%
 ## # Groups:   day [7]
 ##    day    line        mean_delay
 ##    &lt;chr&gt;  &lt;chr&gt;            &lt;dbl&gt;
-##  1 Friday &lt;NA&gt;              0   
-##  2 Friday 16 MCCOWAN        0   
-##  3 Friday 704 RAD BUS       0   
-##  4 Friday BD                2.01
-##  5 Friday SHP               2.04
-##  6 Friday SRT               5.98
-##  7 Friday YU                2.49
-##  8 Friday YU / BD           0   
-##  9 Friday YU/ BD            0   
-## 10 Friday YU/BD             0   
+##  1 Friday 16 MCCOWAN        0   
+##  2 Friday 704 RAD BUS       0   
+##  3 Friday BD                2.01
+##  4 Friday SHP               2.04
+##  5 Friday SRT               5.98
+##  6 Friday YU                2.49
+##  7 Friday YU / BD           0   
+##  8 Friday YU/ BD            0   
+##  9 Friday YU/BD             0   
+## 10 Friday YUS               0   
 ## # … with 53 more rows</code></pre>
 <p>of course we have the added pleasure of the fact that this dataset isn’t coded consistently (three variants of YU/BD!), but that’s a topic for another post.</p>
 </div>
@@ -200,16 +188,16 @@ delays %&gt;%
 ## # Groups:   day [7]
 ##    day    line        mean_delay
 ##    &lt;chr&gt;  &lt;chr&gt;            &lt;dbl&gt;
-##  1 Friday &lt;NA&gt;              0   
-##  2 Friday 16 MCCOWAN        0   
-##  3 Friday 704 RAD BUS       0   
-##  4 Friday BD                2.01
-##  5 Friday SHP               2.04
-##  6 Friday SRT               5.98
-##  7 Friday YU                2.49
-##  8 Friday YU / BD           0   
-##  9 Friday YU/ BD            0   
-## 10 Friday YU/BD             0   
+##  1 Friday 16 MCCOWAN        0   
+##  2 Friday 704 RAD BUS       0   
+##  3 Friday BD                2.01
+##  4 Friday SHP               2.04
+##  5 Friday SRT               5.98
+##  6 Friday YU                2.49
+##  7 Friday YU / BD           0   
+##  8 Friday YU/ BD            0   
+##  9 Friday YU/BD             0   
+## 10 Friday YUS               0   
 ## # … with 53 more rows</code></pre>
 <p>beauty.</p>
 </div>
@@ -263,18 +251,18 @@ delays %&gt;%
   )</code></pre>
 <pre><code>## # A tibble: 63 x 4
 ## # Groups:   line [16]
-##    line        day       min_delay min_gap
-##    &lt;chr&gt;       &lt;chr&gt;         &lt;dbl&gt;   &lt;dbl&gt;
-##  1 &lt;NA&gt;        Friday        0        0   
-##  2 &lt;NA&gt;        Monday        0        0   
-##  3 &lt;NA&gt;        Saturday      0.667    1.11
-##  4 &lt;NA&gt;        Sunday        0        0   
-##  5 &lt;NA&gt;        Thursday      0        0   
-##  6 &lt;NA&gt;        Tuesday       0        0   
-##  7 &lt;NA&gt;        Wednesday     0        0   
-##  8 16 MCCOWAN  Friday        0        0   
-##  9 16 MCCOWAN  Saturday      0        0   
-## 10 704 RAD BUS Friday        0        0   
+##    line        day      min_delay min_gap
+##    &lt;chr&gt;       &lt;chr&gt;        &lt;dbl&gt;   &lt;dbl&gt;
+##  1 16 MCCOWAN  Friday        0       0   
+##  2 16 MCCOWAN  Saturday      0       0   
+##  3 704 RAD BUS Friday        0       0   
+##  4 999         Monday        0       0   
+##  5 999         Thursday      0       0   
+##  6 999         Tuesday       0       0   
+##  7 BD          Friday        2.01    2.91
+##  8 BD          Monday        2.12    3.05
+##  9 BD          Saturday      2.58    3.84
+## 10 BD          Sunday        2.44    3.59
 ## # … with 53 more rows</code></pre>
 <p>the only thing here is that you <em>have</em> to use <code>vars()</code>, even if you’re just passing one variable. like, this doesn’t work:</p>
 <pre class="r"><code>delays %&gt;%
@@ -282,7 +270,7 @@ delays %&gt;%
     group_vars = day,
     mean_vars = vars(min_delay, min_gap)
   )</code></pre>
-<pre><code>## Error in quos(...): object &#39;day&#39; not found</code></pre>
+<pre><code>## Error in splice(dot_call(capture_dots, frame_env = frame_env, named = named, : object &#39;day&#39; not found</code></pre>
 <p>because the tidyeval method for passing in a single variable to <code>group_by()</code> is <code>enquo()</code> and then <code>!!</code> as described in the first bit,</p>
 <p>and neither does this:</p>
 <pre class="r"><code>delays %&gt;%
@@ -369,28 +357,31 @@ delays %&gt;%
     )
   )</code></pre>
 <pre><code>## Warning: funs() is soft deprecated as of dplyr 0.8.0
-## please use list() instead
+## Please use a list of either functions or lambdas: 
 ## 
-## # Before:
-## funs(name = f(.)
+##   # Simple named list: 
+##   list(mean = mean, median = median)
 ## 
-## # After: 
-## list(name = ~f(.))
+##   # Auto named with `tibble::lst()`: 
+##   tibble::lst(mean, median)
+## 
+##   # Using lambdas
+##   list(~ mean(., trim = .2), ~ median(., na.rm = TRUE))
 ## This warning is displayed once per session.</code></pre>
 <pre><code>## # A tibble: 63 x 6
 ## # Groups:   day [7]
 ##    day    line  min_delay_mean min_gap_mean min_delay_median min_gap_median
 ##    &lt;chr&gt;  &lt;chr&gt;          &lt;dbl&gt;        &lt;dbl&gt;            &lt;dbl&gt;          &lt;dbl&gt;
-##  1 Friday &lt;NA&gt;            0            0                   0              0
-##  2 Friday 16 M…           0            0                   0              0
-##  3 Friday 704 …           0            0                   0              0
-##  4 Friday BD              2.01         2.91                0              0
-##  5 Friday SHP             2.04         3.56                0              0
-##  6 Friday SRT             5.98         9.31                4             10
-##  7 Friday YU              2.49         3.66                0              0
-##  8 Friday YU /…           0            0                   0              0
-##  9 Friday YU/ …           0            0                   0              0
-## 10 Friday YU/BD           0            0                   0              0
+##  1 Friday 16 M…           0            0                   0              0
+##  2 Friday 704 …           0            0                   0              0
+##  3 Friday BD              2.01         2.91                0              0
+##  4 Friday SHP             2.04         3.56                0              0
+##  5 Friday SRT             5.98         9.31                4             10
+##  6 Friday YU              2.49         3.66                0              0
+##  7 Friday YU /…           0            0                   0              0
+##  8 Friday YU/ …           0            0                   0              0
+##  9 Friday YU/BD           0            0                   0              0
+## 10 Friday YUS             0            0                   0              0
 ## # … with 53 more rows</code></pre>
 <p>wowwww.</p>
 </div>
@@ -398,7 +389,7 @@ delays %&gt;%
 <h1>bye</h1>
 <p>there is a lot i don’t know still, and i am happy to be pointed in the direction of other information, or told if i’m spreading misinformation! i especially would like to know how to be able to pass <code>vars()</code> OR just a single variable without <code>vars()</code>. do i write an <code>if</code> statement and then use <code>enquo()</code> and <code>!!</code>? i don’t know! do you?</p>
 <p><strong>update</strong>: rip <code>enquo()</code> and <code>!!</code> long live curly-curly</p>
-<p>thanks to everyone that talks to me on twitter about tidyeval. there’s a lot out there 🌍</p>
+<p>thanks to everyone that talks to me on twitter about tidyeval. there’s a lot out there 🌏</p>
 <p>here is a collection of tidyeval resources that probably explain why things work the way they do:</p>
 <ul>
 <li><a href="https://dplyr.tidyverse.org/articles/programming.html">programming with dplyr vignette by ?? the tidyverse team</a></li>
