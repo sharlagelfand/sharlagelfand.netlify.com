@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cleaning up after the federal election</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Sharla Gelfand" />
+    <meta name="date" content="2019-10-24" />
+    <link href="libs/remark-css/default.css" rel="stylesheet" />
+    <link href="libs/remark-css/rladies.css" rel="stylesheet" />
+    <link href="libs/remark-css/rladies-fonts.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Cleaning up after the federal election
+## University of Toronto iSchool Data Cleaning Brown Bag
+### Sharla Gelfand
+### October 24, 2019
+
+---
+
+
+
+
+&lt;img src="img/tweet.png" width="80%" style="display: block; margin: auto;" /&gt;
+
+---
+class: middle, center
+# Some questions to ask yourself...
+
+### 1. What do I want my data to look like when I go to use it?
+### 2. What does it look like now?
+### 3. How do I get there?
+### 4. How can I be as lazy as possible?
+
+---
+class: middle, center
+# Analyzing data from the election
+
+### Which ridings changed parties between 2015 and 2019? What were the changes?
+
+---
+class: inverse, middle, center
+
+# What do I want my data to look like when I go to use it?
+
+## Plan out the end result
+
+---
+
+## What should my data look like?
+
+####  Which ridings changed parties between 2015 and 2019? What were the changes?
+
+Elected parties, by riding:
+
+* A list of all ridings in Canada
+* Which party won in that riding in 2015
+* Which party won in that riding in 2019
+
+--
+
+![](img/data.svg)&lt;!-- --&gt;
+
+---
+class: inverse, middle, center
+
+# What does my data look like now?
+
+## Assess the current state
+
+---
+
+
+
+## 2015 Election Results
+
+[42nd General Election: Official Voting Results (Voting Results by Electoral District)](https://open.canada.ca/data/en/dataset/775f3136-1aa3-4854-a51e-1a2dab362525)
+
+
+```r
+ridings_results_2015_raw
+```
+
+```
+## # A tibble: 338 x 13
+##    Province `Electoral Dist… `Electoral Dist… Population `Electors/Élect…
+##    &lt;chr&gt;    &lt;chr&gt;                       &lt;dbl&gt;      &lt;dbl&gt;            &lt;dbl&gt;
+##  1 Newfoun… Avalon                      10001      81540            68487
+##  2 Newfoun… Bonavista--Buri…            10002      76704            62462
+##  3 Newfoun… Coast of Bays--…            10003      78092            64226
+##  4 Newfoun… Labrador                    10004      26728            20045
+##  5 Newfoun… Long Range Moun…            10005      87592            71918
+##  6 Newfoun… St. John's East…            10006      81936            66304
+##  7 Newfoun… St. John's Sout…            10007      81944            67596
+##  8 Prince … Cardigan                    11001      36005            28889
+##  9 Prince … Charlottetown               11002      34562            28129
+## 10 Prince … Egmont                      11003      34598            27858
+## # … with 328 more rows, and 8 more variables: `Polling Stations/Bureaux de
+## #   scrutin` &lt;dbl&gt;, `Valid Ballots/Bulletins valides` &lt;dbl&gt;, `Percentage
+## #   of Valid Ballots /Pourcentage des bulletins valides` &lt;dbl&gt;, `Rejected
+## #   Ballots/Bulletins rejetés` &lt;dbl&gt;, `Percentage of Rejected Ballots
+## #   /Pourcentage des bulletins rejetés` &lt;dbl&gt;, `Total Ballots Cast/Total
+## #   des bulletins déposés` &lt;dbl&gt;, `Percentage of Voter Turnout/Pourcentage
+## #   de la participation électorale` &lt;dbl&gt;, `Elected Candidate/Candidat
+## #   élu` &lt;chr&gt;
+```
+
+---
+
+## 2015 Election Results
+
+
+```r
+library(dplyr)
+
+ridings_results_2015 &lt;- ridings_results_2015_raw %&gt;%
+  select(
+    `Electoral District Name/Nom de circonscription`,
+    `Elected Candidate/Candidat élu`
+  )
+
+head(ridings_results_2015)
+```
+
+```
+## # A tibble: 6 x 2
+##   `Electoral District Name/Nom de circonscri… `Elected Candidate/Candidat …
+##   &lt;chr&gt;                                       &lt;chr&gt;                        
+## 1 Avalon                                      McDonald, Ken Liberal/Libéral
+## 2 Bonavista--Burin--Trinity                   Foote, Judy M. Liberal/Libér…
+## 3 Coast of Bays--Central--Notre Dame          Simms, Scott Liberal/Libéral 
+## 4 Labrador                                    Jones, Yvonne Liberal/Libéral
+## 5 Long Range Mountains                        Hutchings, Gudie Liberal/Lib…
+## 6 St. John's East/St. John's-Est              Whalen, Nick Liberal/Libéral
+```
+
+--
+
+Riding name contains English and French. Elected party is contained within elected candidate field.
+
+---
+
+## 2019 Election Results
+
+[October 21, 2019 Federal Election Election Results](https://enr.elections.ca/National.aspx?lang=e)
+
+
+```r
+ridings_results_2019_raw
+```
+
+```
+## # A tibble: 338 x 14
+##    `Province/terri… `Electoral dist… `Candidate who … `Political affi…
+##    &lt;chr&gt;            &lt;chr&gt;            &lt;chr&gt;            &lt;chr&gt;           
+##  1 Newfoundland an… Avalon           Kenneth McDonald Liberal         
+##  2 Newfoundland an… Bonavista--Buri… Churence Rogers  Liberal         
+##  3 Newfoundland an… Coast of Bays--… Scott Simms      Liberal         
+##  4 Newfoundland an… Labrador         Yvonne Jones     Liberal         
+##  5 Newfoundland an… Long Range Moun… Gudie Hutchings  Liberal         
+##  6 Newfoundland an… St. John's East  Jack Harris      NDP             
+##  7 Newfoundland an… St. John's Sout… Seamus O'Regan   Liberal         
+##  8 Prince Edward I… Cardigan         Lawrence MacAul… Liberal         
+##  9 Prince Edward I… Charlottetown    Sean Casey       Liberal         
+## 10 Prince Edward I… Egmont           Bobby Morrissey  Liberal         
+## # … with 328 more rows, and 10 more variables: `Number of votes
+## #   cast` &lt;dbl&gt;, `Candidate who received the second-most votes` &lt;chr&gt;,
+## #   `Political affiliation_1` &lt;chr&gt;, `Number of votes cast_1` &lt;dbl&gt;,
+## #   `Total number of valid votes cast in the electoral district` &lt;dbl&gt;,
+## #   `Variance between first and second place (number of votes)` &lt;dbl&gt;,
+## #   `Variance (percentage)` &lt;chr&gt;, `Status of results (preliminary or
+## #   validated)` &lt;chr&gt;, `Judicial recount requested or automatic` &lt;chr&gt;,
+## #   X14 &lt;lgl&gt;
+```
+
+---
+
+## 2019 Election Results
+
+
+```r
+ridings_results_2019 &lt;- ridings_results_2019_raw %&gt;%
+  select(
+    `Electoral district`,
+    `Political affiliation`
+  )
+
+ridings_results_2019
+```
+
+```
+## # A tibble: 338 x 2
+##    `Electoral district`               `Political affiliation`
+##    &lt;chr&gt;                              &lt;chr&gt;                  
+##  1 Avalon                             Liberal                
+##  2 Bonavista--Burin--Trinity          Liberal                
+##  3 Coast of Bays--Central--Notre Dame Liberal                
+##  4 Labrador                           Liberal                
+##  5 Long Range Mountains               Liberal                
+##  6 St. John's East                    NDP                    
+##  7 St. John's South--Mount Pearl      Liberal                
+##  8 Cardigan                           Liberal                
+##  9 Charlottetown                      Liberal                
+## 10 Egmont                             Liberal                
+## # … with 328 more rows
+```
+
+--
+
+English riding name only, political party is available on its own.
+
+---
+class: inverse, middle, center
+
+# How do I get there? How do I know what I'm doing is right?
+
+## Make a plan. Take things slowly. Check your answers!
+
+---
+
+## We have...
+
+2015 data: a list of ridings (English and French names together) and which official was elected (with their political affiliation in the same field)
+
+2019 data: a list of ridings (English name only) and which political party was elected
+
+--
+
+## We want...
+
+A list of all ridings and which party won in 2015 and 2019
+---
+
+## Game plan:
+
+◼️ Make the data easier to work with
+
+--
+
+◼️ Extract the English riding name from the 2015 data
+
+--
+
+◼️ Ensure the ridings names from the two data sets match
+
+--
+
+◼️ Extract the elected party from the 2015 elected official
+
+--
+
+◼️ Combine the two data sets
+
+---
+
+## Make the data easier to work with
+
+
+```r
+names(ridings_results_2019)
+```
+
+```
+## [1] "Electoral district"    "Political affiliation"
+```
+
+--
+
+
+```r
+ridings_results_2019 %&gt;%
+  select(Electoral district)
+```
+
+--
+
+
+```
+## Error: &lt;text&gt;:2:20: unexpected symbol
+## 1: ridings_results_2019 %&gt;%
+## 2:   select(Electoral district
+##                       ^
+```
+
+--
+
+
+```r
+ridings_results_2019 %&gt;%
+  select(`Electoral district`)
+```
+
+--
+
+
+```
+## # A tibble: 338 x 1
+##    `Electoral district`              
+##    &lt;chr&gt;                             
+##  1 Avalon                            
+##  2 Bonavista--Burin--Trinity         
+##  3 Coast of Bays--Central--Notre Dame
+##  4 Labrador                          
+##  5 Long Range Mountains              
+##  6 St. John's East                   
+##  7 St. John's South--Mount Pearl     
+##  8 Cardigan                          
+##  9 Charlottetown                     
+## 10 Egmont                            
+## # … with 328 more rows
+```
+
+---
+
+## Make the data easier to work with
+
+The [`janitor` package]() is totally 💣 for cleaning data.
+
+
+```r
+library(janitor)
+
+ridings_results_2015 &lt;- ridings_results_2015 %&gt;%
+  clean_names()
+
+ridings_results_2019 &lt;- ridings_results_2019 %&gt;%
+  clean_names()
+
+names(ridings_results_2019)
+```
+
+--
+
+
+```
+## [1] "electoral_district"    "political_affiliation"
+```
+
+--
+
+✅ Make the data easier to work with
+
+---
+
+## Get the English riding name out of the 2015 data
+
+English riding name is everything before the first "/" (if there is one)
+
+--
+
+
+```r
+library(tidyr)
+
+ridings_results_2015 &lt;- ridings_results_2015 %&gt;%
+  separate(electoral_district_name_nom_de_circonscription,
+    into = "riding",
+    sep = "/")
+
+ridings_results_2015
+```
+
+--
+
+
+```
+## # A tibble: 338 x 2
+##    riding                             elected_candidate_candidat_elu    
+##    &lt;chr&gt;                              &lt;chr&gt;                             
+##  1 Avalon                             McDonald, Ken Liberal/Libéral     
+##  2 Bonavista--Burin--Trinity          Foote, Judy M. Liberal/Libéral    
+##  3 Coast of Bays--Central--Notre Dame Simms, Scott Liberal/Libéral      
+##  4 Labrador                           Jones, Yvonne Liberal/Libéral     
+##  5 Long Range Mountains               Hutchings, Gudie Liberal/Libéral  
+##  6 St. John's East                    Whalen, Nick Liberal/Libéral      
+##  7 St. John's South--Mount Pearl      O'Regan, Seamus Liberal/Libéral   
+##  8 Cardigan                           MacAulay, Lawrence Liberal/Libéral
+##  9 Charlottetown                      Casey, Sean Liberal/Libéral       
+## 10 Egmont                             Morrissey, Bobby Liberal/Libéral  
+## # … with 328 more rows
+```
+
+--
+
+✅ Extract the English riding name from the 2015 data
+
+---
+
+## Ensure the riding names match
+
+
+```r
+ridings_results_2015 &lt;- ridings_results_2015 %&gt;%
+  arrange(riding)
+
+ridings_results_2019 &lt;- ridings_results_2019 %&gt;%
+  rename(riding = electoral_district) %&gt;%
+  arrange(riding)
+
+all(ridings_results_2015[["riding"]] == ridings_results_2019[["riding"]])
+```
+
+--
+
+
+```
+## [1] FALSE
+```
+
+--
+
+
+```r
+ridings_results_2015 %&gt;%
+  select(riding_2015 = riding) %&gt;%
+  bind_cols(ridings_results_2019 %&gt;%
+              select(riding_2019 = riding)) %&gt;%
+  filter(riding_2015 != riding_2019)
+```
+
+```
+## # A tibble: 3 x 2
+##   riding_2015                           riding_2019                        
+##   &lt;chr&gt;                                 &lt;chr&gt;                              
+## 1 Beauport--Côte-de-Beaupré--Île d'Orl… Beauport--Limoilou                 
+## 2 Beauport--Limoilou                    Beauport-Côte-de-Beaupré-Île d'Orl…
+## 3 Leeds--Grenville--Thousand Islands a… Leeds-Grenville-Thousand Islands a…
+```
+
+--
+
+❌ Ensure the ridings names from the two data sets match
+
+---
+
+## Ensure the riding names match
+
+Replace all "--" with "-"
+
+--
+
+
+```r
+library(stringr)
+
+ridings_results_2015 &lt;- ridings_results_2015 %&gt;%
+  mutate(riding = str_replace_all(riding, "--", "-")) %&gt;%
+  arrange(riding)
+
+ridings_results_2019 &lt;- ridings_results_2019 %&gt;%
+  mutate(riding = str_replace_all(riding, "--", "-")) %&gt;%
+  arrange(riding)
+```
+
+--
+
+
+```r
+all(ridings_results_2015[["riding"]] == ridings_results_2019[["riding"]])
+```
+
+```
+## [1] TRUE
+```
+
+--
+
+✅ Ensure the ridings names from the two data sets match
+
+---
+
+## Get the elected party out of the elected official
+
+
+```r
+ridings_results_2015 %&gt;%
+  select(elected_candidate_candidat_elu)
+```
+
+```
+## # A tibble: 338 x 1
+##    elected_candidate_candidat_elu                                          
+##    &lt;chr&gt;                                                                   
+##  1 Fast, Ed Conservative/Conservateur                                      
+##  2 Saganash, Romeo NDP-New Democratic Party/NPD-Nouveau Parti démocratique 
+##  3 Moore, Christine NDP-New Democratic Party/NPD-Nouveau Parti démocratique
+##  4 Cormier, Serge Liberal/Libéral                                          
+##  5 Joly, Mélanie Liberal/Libéral                                           
+##  6 Holland, Mark Liberal/Libéral                                           
+##  7 Iacono, Angelo Liberal/Libéral                                          
+##  8 Hughes, Carol NDP-New Democratic Party/NPD-Nouveau Parti démocratique   
+##  9 Lauzon, Stéphane Liberal/Libéral                                        
+## 10 Alleslev, Leona Liberal/Libéral                                         
+## # … with 328 more rows
+```
+
+---
+
+## Get the elected party out of the elected official
+
+Getting the party name in French would be easy - everything after the slash
+
+
+```r
+ridings_results_2015 %&gt;%
+  separate(
+    elected_candidate_candidat_elu,
+    into = c("candidate_and_english_party", "french_party"),
+    sep = "/"
+  ) %&gt;%
+  count(french_party)
+```
+
+--
+
+
+```
+## # A tibble: 5 x 2
+##   french_party                       n
+##   &lt;chr&gt;                          &lt;int&gt;
+## 1 Bloc Québécois                    10
+## 2 Conservateur                      99
+## 3 Libéral                          184
+## 4 NPD-Nouveau Parti démocratique    44
+## 5 Parti Vert                         1
+```
+
+--
+
+Not as easy in English - party names are not just the word before the slash.
+
+---
+
+## Get the elected party out of the elected official
+
+I'm not above manual recoding!
+
+
+```r
+ridings_results_2015 &lt;- ridings_results_2015 %&gt;%
+  mutate(party = case_when(
+    str_detect(elected_candidate_candidat_elu, "Conservative") ~ "Conservative",
+    str_detect(elected_candidate_candidat_elu, "NDP") ~ "NDP",
+    str_detect(elected_candidate_candidat_elu, "Liberal") ~ "Liberal",
+    str_detect(elected_candidate_candidat_elu, "Bloc Québécois") ~ "Bloc Québécois",
+    str_detect(elected_candidate_candidat_elu, "Green Party") ~ "Green Party"
+  )) %&gt;%
+  select(-elected_candidate_candidat_elu)
+
+head(ridings_results_2015)
+```
+
+--
+
+
+```
+## # A tibble: 6 x 2
+##   riding                           party       
+##   &lt;chr&gt;                            &lt;chr&gt;       
+## 1 Abbotsford                       Conservative
+## 2 Abitibi-Baie-James-Nunavik-Eeyou NDP         
+## 3 Abitibi-Témiscamingue            NDP         
+## 4 Acadie-Bathurst                  Liberal     
+## 5 Ahuntsic-Cartierville            Liberal     
+## 6 Ajax                             Liberal
+```
+
+--
+
+✅ Extract the elected party from the 2015 elected official
+
+---
+
+## Combine the 2015 and 2019 results
+
+
+```r
+ridings_results_2019 &lt;- ridings_results_2019 %&gt;%
+  rename(party = political_affiliation)
+
+riding_results &lt;- ridings_results_2015 %&gt;%
+  full_join(ridings_results_2019,
+    by = "riding",
+    suffix = c("_2015", "_2019")
+  )
+
+head(riding_results)
+```
+
+--
+
+
+```
+## # A tibble: 6 x 3
+##   riding                           party_2015   party_2019    
+##   &lt;chr&gt;                            &lt;chr&gt;        &lt;chr&gt;         
+## 1 Abbotsford                       Conservative Conservative  
+## 2 Abitibi-Baie-James-Nunavik-Eeyou NDP          Bloc Québécois
+## 3 Abitibi-Témiscamingue            NDP          Bloc Québécois
+## 4 Acadie-Bathurst                  Liberal      Liberal       
+## 5 Ahuntsic-Cartierville            Liberal      Liberal       
+## 6 Ajax                             Liberal      Liberal
+```
+
+--
+
+✅ Combine the two data sets
+
+---
+
+## Combine the 2015 and 2019 results
+
+### Expectations
+
+&lt;img src="img/data.svg" width="50%" /&gt;
+
+--
+
+### Reality
+
+
+```r
+head(riding_results)
+```
+
+```
+## # A tibble: 6 x 3
+##   riding                           party_2015   party_2019    
+##   &lt;chr&gt;                            &lt;chr&gt;        &lt;chr&gt;         
+## 1 Abbotsford                       Conservative Conservative  
+## 2 Abitibi-Baie-James-Nunavik-Eeyou NDP          Bloc Québécois
+## 3 Abitibi-Témiscamingue            NDP          Bloc Québécois
+## 4 Acadie-Bathurst                  Liberal      Liberal       
+## 5 Ahuntsic-Cartierville            Liberal      Liberal       
+## 6 Ajax                             Liberal      Liberal
+```
+
+---
+
+## What have we accomplished?
+
+✅ Make the data easier to work with
+
+✅ Extract the English riding name from the 2015 data
+
+✅ Ensure the ridings names from the two data sets match
+
+✅ Extract the elected party from the 2015 elected official
+
+✅ Combine the two data sets
+
+---
+class: inverse, middle, center
+
+# What question did we want to answer?
+
+---
+
+## How many ridings elected a different party in 2019 than they did in 2015?
+
+
+```r
+different_parties &lt;- riding_results %&gt;%
+  filter(party_2015 != party_2019)
+
+different_parties
+```
+
+--
+
+
+```
+## # A tibble: 62 x 3
+##    riding                                        party_2015   party_2019   
+##    &lt;chr&gt;                                         &lt;chr&gt;        &lt;chr&gt;        
+##  1 Abitibi-Baie-James-Nunavik-Eeyou              NDP          Bloc Québéco…
+##  2 Abitibi-Témiscamingue                         NDP          Bloc Québéco…
+##  3 Aurora-Oak Ridges-Richmond Hill               Liberal      Conservative 
+##  4 Avignon-La Mitis-Matane-Matapédia             Liberal      Bloc Québéco…
+##  5 Beauport-Côte-de-Beaupré-Île d'Orléans-Charl… Conservative Bloc Québéco…
+##  6 Beauport-Limoilou                             Conservative Bloc Québéco…
+##  7 Beloeil-Chambly                               NDP          Bloc Québéco…
+##  8 Berthier-Maskinongé                           NDP          Bloc Québéco…
+##  9 Calgary Centre                                Liberal      Conservative 
+## 10 Calgary Skyview                               Liberal      Conservative 
+## # … with 52 more rows
+```
+
+---
+
+## How many ridings elected a different party in 2019 than they did in 2015?
+
+
+```r
+library(glue)
+
+different_parties &lt;- different_parties %&gt;%
+  mutate(party_change = glue("{party_2015} to {party_2019}"))
+
+different_parties["party_change"]
+```
+
+--
+
+
+```
+## # A tibble: 62 x 1
+##    party_change                  
+##    &lt;glue&gt;                        
+##  1 NDP to Bloc Québécois         
+##  2 NDP to Bloc Québécois         
+##  3 Liberal to Conservative       
+##  4 Liberal to Bloc Québécois     
+##  5 Conservative to Bloc Québécois
+##  6 Conservative to Bloc Québécois
+##  7 NDP to Bloc Québécois         
+##  8 NDP to Bloc Québécois         
+##  9 Liberal to Conservative       
+## 10 Liberal to Conservative       
+## # … with 52 more rows
+```
+
+---
+
+## How many ridings elected a different party in 2019 than they did in 2015?
+
+
+```r
+different_parties %&gt;%
+  tabyl(party_change) %&gt;%
+  adorn_pct_formatting() %&gt;%
+  arrange(-n)
+```
+
+--
+
+
+```
+##                      party_change  n percent
+## 1         Liberal to Conservative 21   33.9%
+## 2           NDP to Bloc Québécois 11   17.7%
+## 3       Liberal to Bloc Québécois  8   12.9%
+## 4             NDP to Conservative  6    9.7%
+## 5                  NDP to Liberal  5    8.1%
+## 6  Conservative to Bloc Québécois  3    4.8%
+## 7                  Liberal to NDP  3    4.8%
+## 8         Conservative to Liberal  2    3.2%
+## 9          Liberal to Green Party  1    1.6%
+## 10         Liberal to Independent  1    1.6%
+## 11             NDP to Green Party  1    1.6%
+```
+
+---
+class: middle, center
+
+# What have we covered?
+
+### ✅ What do I want my data to look like when I go to use it?
+### ✅ What does it look like now?
+### ✅ How do I get there?
+### ❌ How can I be as lazy as possible?
+
+---
+
+## How can I be as lazy as possible?
+
+--
+
+### Reduce friction!
+
+--
+
+Clean your column names
+
+--
+
+Optimize for human readability
+
+--
+
+If there's an easy way, take it (no one is handing out medals for figuring out regular expressions)
+
+--
+
+Consider alternative methods (`separate` versus regex)
+
+--
+
+Use packages that already exist. Keep up with what's out there ([rweekly.org](rweekly.org))
+
+---
+class: middle, center
+
+# Thank you!
+
+#### Sometimes I blog about cleaning data: [sharla.party](sharla.party)
+
+#### I tweet: @sharlagelfand
+
+#### Slides:
+    </textarea>
+<script src="libs/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function() {
+  var d = document, s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})();</script>
+
+<script>
+(function() {
+  var i, text, code, codes = document.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+})();
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
